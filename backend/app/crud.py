@@ -108,40 +108,36 @@ def search_prices_for_product(db: Session, query: str, city_id: int, sort_by: st
     with dynamic sorting
     """
     
+    def apply_sorting(query_obj, sort_by):
+        """Helper function to apply sorting logic"""
+        if sort_by == "price_desc":
+            return query_obj.order_by(models.Price.price.desc())
+        # Add more sorting options here later (e.g., rating)
+        # elif sort_by == "rating_desc":
+        #     return query_obj.join(models.Review).order_by(models.Review.rating.desc())
+        else:  # Default case
+            return query_obj.order_by(models.Price.price.asc())
+    
+    # First try "starts with" search
     price_query = db.query(models.Price).join(models.Product).join(models.Store).join(models.MarketArea).filter(
         models.MarketArea.city_id == city_id,
         models.Product.name.ilike(f"{query}%")
     )
-
-    # --- NEW: Dynamic Sorting Logic ---
-    if sort_by == "price_desc":
-        price_query = price_query.order_by(models.Price.price.desc())
-    # Add more sorting options here later (e.g., rating)
-    # elif sort_by == "rating_desc":
-    #     price_query = price_query.join(models.Review).order_by(models.Review.rating.desc())
-    else: # Default case
-        price_query = price_query.order_by(models.Price.price.asc())
     
+    price_query = apply_sorting(price_query, sort_by)
     db_prices = price_query.all()
 
     # If no "starts with" match, try a broader "contains" search
     if not db_prices:
         price_query = db.query(models.Price).join(models.Product).join(models.Store).join(models.MarketArea).filter(
             models.MarketArea.city_id == city_id,
-            models.Product.name.ilike(f"%{query}%")
+            models.Product.name.ilike(f"%{query}%")  # Fixed: use ilike instead of contains
         )
-        # --- NEW: Dynamic Sorting Logic ---
-        if sort_by == "price_desc":
-            price_query = price_query.order_by(models.Price.price.desc())
-        # Add more sorting options here later (e.g., rating)
-        # elif sort_by == "rating_desc":
-        #     price_query = price_query.join(models.Review).order_by(models.Review.rating.desc())
-        else: # Default case
-            price_query = price_query.order_by(models.Price.price.asc())
-
+        
+        price_query = apply_sorting(price_query, sort_by)
         db_prices = price_query.all()
     
-    # We no longer need the fuzzy search for this core logic, making it more predictable.
+    # Format results
     formatted_results = []
     for price_obj in db_prices:
         formatted_results.append({

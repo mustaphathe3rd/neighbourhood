@@ -1,22 +1,21 @@
-// src/components/ProductCard.tsx
 import React from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
 
 type ProductCardProps = {
   imageUrl: string;
-  name: string;
-  market: string;
+  productName: string;
+  storeName: string;
   price: number;
   onPress: () => void;
 };
 
-export const ProductCard = ({ imageUrl, name, market, price, onPress }: ProductCardProps) => {
+export const PriceResultCard = ({ imageUrl, productName, storeName, price, onPress }: ProductCardProps) => {
   return (
     <View style={styles.cardContainer}>
       <Image source={{ uri: imageUrl }} style={styles.image} />
       <View style={styles.infoContainer}>
-        <Text style={styles.name} numberOfLines={2}>{name}</Text>
-        <Text style={styles.market}>Available at: {market}</Text>
+        <Text style={styles.name} numberOfLines={2}>{productName}</Text>
+        <Text style={styles.market}>Available at: {storeName}</Text>
         <Text style={styles.price}>₦{price.toLocaleString()}</Text>
       </View>
       <TouchableOpacity style={styles.viewButton} onPress={onPress}>

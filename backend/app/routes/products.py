@@ -19,7 +19,7 @@ def get_db():
         db.close()
 
 @router.get("/search", response_model=List[schemas.PriceSearchResult])
-def search_for_products(q: str, city_id: int,sort_by: Optional[str] = "price_asc", db: Session = Depends(get_db)):
+def search_for_products_prices(q: str, city_id: int,sort_by: Optional[str] = "price_asc", db: Session = Depends(get_db)):
     results = crud.search_prices_for_product(db=db, query=q, city_id=city_id, sort_by=sort_by)
     # The 404 is now handled by the frontend if the list is empty
     return results
