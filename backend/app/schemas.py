@@ -1,5 +1,5 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional
+from pydantic import BaseModel, EmailStr, constr
+from typing import Optional, List
 from datetime import datetime
 
 
@@ -72,6 +72,11 @@ class PriceSearchResult(BaseModel):
     city: str
     state: str
     timestamp: datetime
+    stock_level: int
+    avg_rating: Optional[float] = None
+    distance_km: Optional[float] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
     
     class Config:
         from_attributes = True
@@ -79,7 +84,28 @@ class PriceSearchResult(BaseModel):
 class StoreSimple(BaseModel):
     id: int
     name: str
-    market_area: str
-    city: str
 
     class Config: from_attributes = True
+    
+class UserInReview(BaseModel):
+    name: str
+    class Config: from_attributes = True
+    
+CommentStr = constr(max_length=500)
+    
+class ReviewBase(BaseModel):
+    rating: int
+    comment: Optional[constr(max_length=500)] = None
+    
+class ReviewCreate(ReviewBase):
+    product_id: int
+    
+class Review(ReviewBase):
+    id: int
+    timestamp: datetime
+    user: UserInReview # Nest user info
+
+    class Config:
+        from_attributes = True
+    
+    

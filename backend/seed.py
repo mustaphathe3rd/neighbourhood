@@ -1,6 +1,7 @@
 from app.database import SessionLocal, engine
 from app.models import models
 from datetime import datetime
+from geoalchemy2.elements import WKTElement 
 
 # Create all tables
 models.Base.metadata.create_all(bind=engine)
@@ -16,17 +17,17 @@ try:
         "Rivers": ["Port Harcourt"],
         "Imo": ["Owerri"],
     }
+    
     markets_data = {
         "Ikeja": [("Computer Village", 3.34, 6.60)],
         "Lekki": [("Lekki Market", 3.51, 6.45)],
+        "Surulere": [("Surulere Market", 3.35, 6.50)],
         "Wuse": [("Wuse Market", 7.45, 9.07)],
-        "Port Harcourt": [("Oil Mill Market", 7.05, 4.83), ("Mile 1 Market", 7.00, 4.79)],
-        "Owerri": [("Eke Ukwu Owerri", 7.03, 5.48)],
-        "Surulere": [("Surulere Market", 3.35, 6.50)], 
         "Garki": [("Garki Model Market", 7.46, 9.03)],
         "Maitama": [("Maitama Market", 7.52, 9.08)],
+        "Port Harcourt": [("Oil Mill Market", 7.05, 4.83), ("Mile 1 Market", 7.00, 4.79)],
+        "Owerri": [("Eke Ukwu Owerri", 7.03, 5.48)],
     }
-
     # --- Seeding Logic for Locations ---
     print("Seeding locations...")
     # (Your existing location seeding logic goes here. It is correct.)
@@ -45,13 +46,16 @@ try:
     db.commit()
     
     # Seeding market areas...
+    print("Seeding market areas...")
     for city_name, markets in markets_data.items():
         city_obj = db.query(models.City).filter(models.City.name == city_name).one()
         for market_name, lon, lat in markets:
             if not db.query(models.MarketArea).filter(models.MarketArea.name == market_name).first():
-                location_point = f'POINT({lon} {lat})'
+                # --- THIS IS THE FIX ---
+                # Create a WKTElement with the correct SRID for PostGIS
+                location_point = WKTElement(f'POINT({lon} {lat})', srid=4326)
                 db.add(models.MarketArea(name=market_name, city_id=city_obj.id, location=location_point))
-    db.commit()
+    db.commit()    
 
     # --- NEW: Seeding Logic for Stores ---
     print("Seeding stores...")

@@ -1,11 +1,15 @@
 # backend/app/crud.py
 from sqlalchemy.orm import Session
-from sqlalchemy import func, or_
+from sqlalchemy import func as sql_func, desc, text
+from sqlalchemy import or_, func
 from .utils import auth
 from . import models, schemas
 from .models import models
 from geoalchemy2 import Geography 
+from geoalchemy2.shape import to_shape 
 from thefuzz import process
+from typing import Optional
+from sqlalchemy.dialects import postgresql 
 
 def get_user_by_email(db: Session, email: str):
     return db.query(models.User).filter(models.User.email == email).first()
@@ -32,28 +36,36 @@ def authenticate_user(db: Session, username: str, password: str):
         return None
     return user
 
-def get_markets_near_location(db: Session, lat: float, lon: float, radius_km: int = 5):
+def get_markets_near_location(db: Session, lat: float, lon: float, radius_km: int):
     """
     Finds market areas within a certain radius (in kilometers) of a given lat/lon.
-    Uses PostGIS functions for geospatial querying.
     """
-    # Define the user's location as a WKT POINT
-    user_location = f'POINT({lon} {lat})'
-    
-    # PostGIS calculates distance in meters, so convert km to meters
     radius_meters = radius_km * 1000
+    user_location_geography = f'POINT({lon} {lat})'
 
-    # Query using ST_DWithin to find markets within the specified distance
-    nearby_markets = db.query(models.MarketArea).filter(
+    # Build the query object without executing it yet
+    query_obj = db.query(models.MarketArea).filter(
         func.ST_DWithin(
-            models.MarketArea.location.cast(Geography), # <-- Step 2: Cast the column to Geography
-            func.ST_GeographyFromText(user_location),
+            models.MarketArea.location.cast(Geography),
+            func.ST_GeographyFromText(user_location_geography),
             radius_meters
         )
-    ).all()
-    
-    return nearby_markets
+    )
 
+    # --- ADD THIS DEBUGGING BLOCK ---
+    # Compile the query to a string with the actual values
+    compiled_query = query_obj.statement.compile(
+        dialect=postgresql.dialect(),
+        compile_kwargs={"literal_binds": True}
+    )
+    print("--- DEBUG: GENERATED SQL QUERY ---")
+    print(compiled_query)
+    print("---------------------------------")
+    # --- END OF DEBUGGING BLOCK ---
+
+    # Now execute the query
+    return query_obj.all()
+    
 def get_states(db: Session):
     return db.query(models.State).order_by(models.State.name).all()
 
@@ -66,144 +78,220 @@ def get_markets_by_city(db: Session, city_id: int):
 def get_product_by_barcode(db: Session, barcode: str):
     return db.query(models.Product).filter(models.Product.barcode == barcode).first()
 
-# def search_products(db: Session, query: str, city_id: int):
-#     # Pass 1: Prioritize products that start with the query string in the correct city
-#     exact_query = db.query(models.Product).join(models.Price).join(models.Store).join(models.MarketArea).filter(
-#         models.MarketArea.city_id == city_id,
-#         models.Product.name.ilike(f"{query}%")
-#     ).distinct().all()
-
-#     if exact_query:
-#         return exact_query
-
-#     # Pass 2: If no direct match, use fuzzy matching as a fallback
-#     if len(query) > 2:
-#         # Get all unique product names available in the target city
-#         all_products_in_city = db.query(models.Product).join(models.Price).join(models.Store).join(models.MarketArea).filter(
-#             models.MarketArea.city_id == city_id
-#         ).distinct().all()
-        
-#         # We now have full product objects, not just names
-#         if not all_products_in_city:
-#             return []
-
-#         # Use a dictionary to map product names to their objects
-#         product_map = {p.name: p for p in all_products_in_city}
-        
-#         # Find the best matches from the names of products available in that city
-#         fuzzy_results = process.extract(query, product_map.keys(), limit=5)
-        
-#         good_matches = []
-#         for match_name, score in fuzzy_results:
-#             if score > 75: # Higher confidence threshold
-#                 good_matches.append(product_map[match_name])
-
-#         return good_matches
+def unified_search(
+    db: Session, 
+    query: str, 
+    sort_by: str,
+    lat: Optional[float] = None, 
+    lon: Optional[float] = None, 
+    radius_km: Optional[int] = None,
+    city_id: Optional[int] = None
+):
+    """A single function to handle all product price searches with starts-with and contains search."""
     
-#     return []
-
-def search_prices_for_product(db: Session, query: str, city_id: int, sort_by: str = "price_asc"):
-    """
-    Finds all price listings for products matching the query in a specific city,
-    with dynamic sorting
-    """
+    def build_base_query(search_pattern: str):
+        """Build the base query with explicit joins and a given search pattern"""
+        # Start by explicitly selecting from the Price table
+        q = db.query(
+            models.Price,
+            sql_func.avg(models.Review.rating).label("avg_rating")
+        ).select_from(models.Price)
+        
+        # Now, explicitly join each table based on the relationships
+        q = q.join(models.Product)
+        q = q.join(models.Store)
+        q = q.join(models.MarketArea)
+        # Use an outerjoin for reviews, as not all products may have reviews
+        q = q.outerjoin(models.Review, models.Price.product_id == models.Review.product_id)
+        
+        # Filter by the product name with the given search pattern
+        q = q.filter(models.Product.name.ilike(search_pattern))
+        
+        # Group by all necessary columns to allow for AVG() and COUNT()
+        q = q.group_by(models.Price.id, models.Product.id, models.Store.id, models.MarketArea.id)
+        
+        # Add distance calculation if GPS coordinates are provided
+        if lat is not None and lon is not None:
+            user_point = sql_func.ST_SetSRID(sql_func.ST_MakePoint(lon, lat), 4326)
+            q = q.add_columns(
+                sql_func.ST_Distance(
+                    models.MarketArea.location.cast(Geography),
+                    user_point.cast(Geography)
+                ).label("distance_meters")
+            )
+            if radius_km:
+                q = q.filter(sql_func.ST_DWithin(
+                    models.MarketArea.location.cast(Geography),
+                    user_point.cast(Geography),
+                    radius_km * 1000
+                ))
+        else:
+            # Add a null distance column if no GPS for consistent result shape
+            q = q.add_columns(text("NULL AS distance_meters"))
+        
+        # Add city filter if provided
+        if city_id:
+            q = q.filter(models.MarketArea.city_id == city_id)
+        
+        return q
     
-    def apply_sorting(query_obj, sort_by):
-        """Helper function to apply sorting logic"""
+    def apply_sorting(q, sort_by):
+        """Apply sorting logic to the query"""
         if sort_by == "price_desc":
-            return query_obj.order_by(models.Price.price.desc())
-        # Add more sorting options here later (e.g., rating)
-        # elif sort_by == "rating_desc":
-        #     return query_obj.join(models.Review).order_by(models.Review.rating.desc())
-        else:  # Default case
-            return query_obj.order_by(models.Price.price.asc())
+            return q.order_by(desc(models.Price.price))
+        elif sort_by == "rating_desc":
+            return q.order_by(desc("avg_rating").nullslast())
+        elif sort_by == "distance_asc" and lat is not None:
+            return q.order_by("distance_meters")
+        else:
+            return q.order_by(models.Price.price.asc())
     
     # First try "starts with" search
-    price_query = db.query(models.Price).join(models.Product).join(models.Store).join(models.MarketArea).filter(
-        models.MarketArea.city_id == city_id,
-        models.Product.name.ilike(f"{query}%")
-    )
+    q = build_base_query(f"{query}%")
+    q = apply_sorting(q, sort_by)
+    results = q.all()
     
-    price_query = apply_sorting(price_query, sort_by)
-    db_prices = price_query.all()
-
     # If no "starts with" match, try a broader "contains" search
-    if not db_prices:
-        price_query = db.query(models.Price).join(models.Product).join(models.Store).join(models.MarketArea).filter(
-            models.MarketArea.city_id == city_id,
-            models.Product.name.ilike(f"%{query}%")  # Fixed: use ilike instead of contains
+    if not results:
+        q = build_base_query(f"%{query}%")
+        q = apply_sorting(q, sort_by)
+        results = q.all()
+    
+    # Format results
+    formatted_results = []
+    # Note: The query now returns a tuple of (Price, avg_rating, distance_meters)
+    for price_obj, avg_rating, distance_meters in results:
+        location_shape = to_shape(price_obj.store.market_area.location) if price_obj.store.market_area.location else None
+        res = {
+            "product_id": price_obj.product.id,
+            "product_name": price_obj.product.name,
+            "price": price_obj.price,
+            "store_id": price_obj.store.id,
+            "store_name": price_obj.store.name,
+            "market_area": price_obj.store.market_area.name,
+            "city": price_obj.store.market_area.city.name,
+            "state": price_obj.store.market_area.city.state.name,
+            "timestamp": price_obj.timestamp,
+            "stock_level": price_obj.stock_level,
+            "avg_rating": avg_rating,
+            "distance_km": (distance_meters / 1000) if distance_meters is not None else None,
+            "lat": location_shape.y if location_shape else None, 
+            "lon": location_shape.x if location_shape else None,
+        }
+        formatted_results.append(res)
+        
+    return formatted_results
+
+def get_prices_for_product(
+    db: Session, 
+    product_id: int, 
+    lat: Optional[float] = None, 
+    lon: Optional[float] = None, 
+    radius_km: Optional[int] = None,
+    city_id: Optional[int] = None
+):
+    """
+    Finds all price listings for a specific product, filtered by EITHER a
+    GPS radius OR a specific city_id.
+    """
+    
+    # Base query
+    q = db.query(
+        models.Price,
+        sql_func.avg(models.Review.rating).label("avg_rating")
+    ).select_from(models.Price).join(models.Product).join(models.Store).join(models.MarketArea).outerjoin(models.Review).filter(
+        models.Price.product_id == product_id
+    ).group_by(models.Price.id, models.Product.id, models.Store.id, models.MarketArea.id)
+
+    # This is the key change. We now correctly handle both GPS and manual cases
+    # while ensuring the data shape is always consistent.
+    if lat is not None and lon is not None and radius_km is not None:
+        user_point = func.ST_SetSRID(func.ST_MakePoint(lon, lat), 4326)
+        # Add the distance column to the query
+        q = q.add_columns(
+            sql_func.ST_Distance(
+                models.MarketArea.location.cast(Geography),
+                user_point.cast(Geography)
+            ).label("distance_meters")
         )
-        
-        price_query = apply_sorting(price_query, sort_by)
-        db_prices = price_query.all()
+        # CRUCIAL: Add the filter to only include stores within the radius
+        q = q.filter(
+            func.ST_DWithin(
+                models.MarketArea.location.cast(Geography),
+                user_point.cast(Geography),
+                radius_km * 1000
+            )
+        )
+    else:
+        # If not using GPS, add a NULL distance column to keep the data shape the same
+        q = q.add_columns(text("NULL AS distance_meters"))
+        if city_id:
+            # Filter by the manually selected city
+            q = q.filter(models.MarketArea.city_id == city_id)
+
+    results = q.order_by(models.Price.price.asc()).all()
     
-    # Format results
+    # Format the results (this part is now safe because 'results' always has 3 items per row)
     formatted_results = []
-    for price_obj in db_prices:
-        formatted_results.append({
-            "product_id": price_obj.product.id,
-            "product_name": price_obj.product.name,
-            "price": price_obj.price,
-            "store_id": price_obj.store.id,
-            "store_name": price_obj.store.name,
-            "market_area": price_obj.store.market_area.name,
-            "city": price_obj.store.market_area.city.name,
-            "state": price_obj.store.market_area.city.state.name,
-            "timestamp": price_obj.timestamp
-        })
+    for price, avg_rating, distance_meters in results:
+        location_shape = to_shape(price.store.market_area.location) if price.store.market_area.location else None 
+        res = {
+            "product_id": price.product.id,
+            "product_name": price.product.name,
+            "price": price.price,
+            "store_id": price.store.id,
+            "store_name": price.store.name,
+            "market_area": price.store.market_area.name,
+            "city": price.store.market_area.city.name,
+            "state": price.store.market_area.city.state.name,
+            "timestamp": price.timestamp,
+            "lat": location_shape.y if location_shape else None,
+            "lon": location_shape.x if location_shape else None,
+            "stock_level": price.stock_level,
+            "avg_rating": avg_rating,
+            "distance_km": round(distance_meters / 1000, 2) if distance_meters is not None else None,
+        }
+        formatted_results.append(res)
         
     return formatted_results
-
-def get_prices_for_product(db: Session, product_id: int, city_id: int):
-    price_query = db.query(models.Price).join(models.Store).join(models.MarketArea).filter(
-        models.Price.product_id == product_id,
-        models.MarketArea.city_id == city_id # <-- The crucial filter
-    ).order_by(models.Price.price.asc()).all()
-    
-    # Format results
-    formatted_results = []
-    for price_obj in price_query:
-        formatted_results.append({
-            "product_id": price_obj.product.id,
-            "product_name": price_obj.product.name,
-            "store_id": price_obj.store.id,
-            "price": price_obj.price,
-            "store_name": price_obj.store.name,
-            "market_area": price_obj.store.market_area.name,
-            "city": price_obj.store.market_area.city.name,
-            "state": price_obj.store.market_area.city.state.name,
-            "timestamp": price_obj.timestamp
-        })
-    return formatted_results
-
-def add_favorite_store(db: Session, user_id: int, store_id: int):
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    store = db.query(models.Store).filter(models.Store.id == store_id).first()
-    if user and store and store not in user.favorite_stores:
-        user.favorite_stores.append(store)
-        db.commit()
-    return user
-
-def remove_favorite_store(db: Session, user_id: int, store_id: int):
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    store = db.query(models.Store).filter(models.Store.id == store_id).first()
-    if user and store and store in user.favorite_stores:
-        user.favorite_stores.remove(store)
-        db.commit()
-    return user
-
 def get_favorite_stores(db: Session, user_id: int):
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if user:
-        # We need to format this data before sending
-        formatted_stores = []
-        for store in user.favorite_stores:
-            formatted_stores.append({
-                "id": store.id,
-                "name": store.name,
-                "market_area": store.market_area.name,
-                "city": store.market_area.city.name
-            })
-        return formatted_stores
+        return user.favorite_stores # Return the direct list of Store objects
     return []
 
+def add_favorite_store(db: Session, user_id: int, store_id: int) -> Optional[models.Store]:
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    store = db.query(models.Store).filter(models.Store.id == store_id).first()
+    
+    if not user or not store or store in user.favorite_stores:
+        return None # Return None if something is wrong
+        
+    user.favorite_stores.append(store)
+    db.commit()
+    return store # Return the store that was added
+
+def remove_favorite_store(db: Session, user_id: int, store_id: int) -> bool:
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    store = db.query(models.Store).filter(models.Store.id == store_id).first()
+    
+    if user and store and store in user.favorite_stores:
+        user.favorite_stores.remove(store)
+        db.commit()
+        return True # Return True on success
+    return False
+
+def create_review(db: Session, review:schemas.ReviewCreate, user_id: int):
+    db_review = models.Review(
+        rating=review.rating,
+        comment=review.comment,
+        product_id=review.product_id,
+        user_id=user_id,
+    )
+    db.add(db_review)
+    db.commit()
+    db.refresh(db_review)
+    return db_review
+
+def get_reviews_for_product(db: Session, product_id: int):
+    return db.query(models.Review).filter(models.Review.product_id == product_id).order_by(desc(models.Review.timestamp)).all()

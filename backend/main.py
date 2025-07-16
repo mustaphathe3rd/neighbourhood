@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine
 from app.models import models
-from app.routes import locations, auth, products
+from app.routes import locations, auth, products, favorites, reviews, users
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -26,6 +26,9 @@ app.add_middleware(
 app.include_router(locations.router)
 app.include_router(auth.router)
 app.include_router(products.router)
+app.include_router(favorites.router)
+app.include_router(reviews.router)
+app.include_router(users.router)
 
 @app.get("/", tags=["Root"])
 def read_root():

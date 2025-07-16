@@ -2,21 +2,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from .. import crud, schemas
-from ..database import SessionLocal
+from ..database import SessionLocal, get_db
 from typing import List
 
 router = APIRouter(
     prefix="/locations",
     tags=["locations"]
 )
-
-# Dependency to get DB session
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 @router.get("/markets/nearby", response_model=List[schemas.MarketArea])
 def read_nearby_markets(lat: float, lon: float, radius_km: int = 5, db: Session = Depends(get_db)):
@@ -46,6 +38,6 @@ def read_states(db: Session = Depends(get_db)):
 def read_cities_for_state(state_id: int, db: Session = Depends(get_db)):
     return crud.get_cities_by_state(db=db, state_id=state_id)
 
-@router.get("/market/{city_id}", response_model=List[schemas.MarketAreaSimple])
+@router.get("/markets/{city_id}", response_model=List[schemas.MarketAreaSimple])
 def read_markets_for_city(city_id: int, db: Session = Depends(get_db)):
     return crud.get_markets_by_city(db=db, city_id=city_id)

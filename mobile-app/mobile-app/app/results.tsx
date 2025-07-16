@@ -4,7 +4,7 @@ import { useLocalSearchParams, router, Stack } from 'expo-router';
 import React, { useEffect, useState, useContext } from 'react';
 import apiClient from '@/src/api/client';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ProductCard } from '@/src/components/ProductCard';
+import { PriceResultCard } from '@/src/components/PriceResultCard';
 import { Ionicons } from '@expo/vector-icons';
 import { LocationContext } from '@/src/context/LocationContext';
 
@@ -86,7 +86,7 @@ export default function SearchResultsScreen() {
             data={products}
             keyExtractor={(item) => item.id.toString()}
             renderItem={({ item }) => (
-            <ProductCard
+            <PriceResultCard
                 // Using a placeholder image service. The seed ensures the same image appears for the same product ID.
                 imageUrl={`https://picsum.photos/seed/${item.id}/200`}
                 name={item.name}

@@ -12,40 +12,64 @@ type PriceResult = {
   product_name: string;
   price: number;
   store_name: string;
+  stock_level: number;
+  avg_rating: number | null;
+  distance_km: number | null;
+   
 };
+
+// A reusable sort button component
+const SortButton = ({ label, sortKey, activeSort, setSort }: { label: string, sortKey: string, activeSort: string, setSort: (key: string) => void }) => {
+  const isActive = activeSort === sortKey;
+  return (
+    <TouchableOpacity 
+        style={[styles.pill, isActive && styles.activePill]} 
+        onPress={() => setSort(sortKey)}
+    >
+        <Text style={[styles.pillText, isActive && styles.activePillText]}>{label}</Text>
+    </TouchableOpacity>
+  );
+};
+
 
 export default function SearchModal() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PriceResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const { activeLocation } = useContext(LocationContext);
-  
-  // --- NEW: State to manage the sort order ---
-  const [sortOrder, setSortOrder] = useState('price_asc'); // 'price_asc' or 'price_desc'
+  const [sortOption, setSortOption] = useState('distance_asc');
+  const { activeLocation, radius } = useContext(LocationContext);
 
   useEffect(() => {
     const handleSearch = async () => {
-      // Don't search if the query is empty
-      if (!query.trim()) {
-        setResults([]);
-        return;
-      }
-      // Also ensure we have a location to search in
-      if (!activeLocation || activeLocation.type !== 'manual') { 
+      // Guard clause: Don't search if there's no query or no active location.
+      if (!query.trim() || !activeLocation) {
         setResults([]);
         return;
       }
 
       setIsLoading(true);
+
+      // --- THIS IS THE CORRECTED LOGIC ---
+      // Dynamically build the search parameters based on location type.
+      const params: any = { 
+        q: query, 
+        sort_by: sortOption
+      };
+
+      if (activeLocation.type === 'gps' && activeLocation.coords) {
+        params.lat = activeLocation.coords.latitude;
+        params.lon = activeLocation.coords.longitude;
+        params.radius_km = radius; // Use a default radius for GPS search
+      } else if (activeLocation.type === 'manual' && activeLocation.cityId) {
+        params.city_id = activeLocation.cityId;
+      } else {
+        // If location type is invalid or missing data, don't search.
+        setIsLoading(false);
+        return;
+      }
+
       try {
-        // --- UPDATED: Add sort_by to the API call params ---
-        const response = await apiClient.get(`/products/search`, {
-          params: {
-            q: query,
-            city_id: activeLocation.cityId,
-            sort_by: sortOrder,
-          }
-        });
+        const response = await apiClient.get('/products/search', { params });
         setResults(response.data);
       } catch (error) {
         console.error("Search failed", error);
@@ -55,17 +79,15 @@ export default function SearchModal() {
       }
     };
 
+    // Use a small delay (debounce) to avoid searching on every keystroke
     const timeoutId = setTimeout(() => handleSearch(), 300);
     return () => clearTimeout(timeoutId);
-    // --- UPDATED: Re-run the search if the sortOrder changes ---
-  }, [query, activeLocation, sortOrder]);
 
+  }, [query, activeLocation, sortOption, radius]);
 
-  // --- NEW: Function to toggle the sort order ---
-  const toggleSortOrder = () => {
-    setSortOrder(currentOrder => currentOrder === 'price_asc' ? 'price_desc' : 'price_asc');
-  };
-
+  // const toggleSortOrder = () => {
+  //   setSortOption(currentOption => currentOption === 'price_asc' ? 'price_desc' : 'price_asc');
+  // };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -75,29 +97,25 @@ export default function SearchModal() {
             <Ionicons name="search" size={20} color="gray" />
             <TextInput 
               style={styles.searchInput} 
-              placeholder='Search for "Rice"'
+              placeholder='Search products...'
               autoFocus={true}
               value={query}
               onChangeText={setQuery}
             />
-            <TouchableOpacity onPress={() => router.back()}>
+             <TouchableOpacity onPress={() => router.back()}>
               <Ionicons name="close-circle" size={24} color="gray" />
             </TouchableOpacity>
           </View>
         ),
         headerBackVisible: false,
       }} />
-
-      {/* --- NEW: Functional sorting button --- */}
+      
       <View style={styles.filterContainer}>
-        <TouchableOpacity style={styles.pill} onPress={toggleSortOrder}>
-            <Ionicons name={sortOrder === 'price_asc' ? 'arrow-up' : 'arrow-down'} size={16} color="#333" />
-            <Text style={styles.pillText}>
-                Price: {sortOrder === 'price_asc' ? 'Low to High' : 'High to Low'}
-            </Text>
-        </TouchableOpacity>
+        <SortButton label="Distance" sortKey="distance_asc" activeSort={sortOption} setSort={setSortOption} />
+        <SortButton label="Price" sortKey="price_asc" activeSort={sortOption} setSort={setSortOption} />
+        <SortButton label="Rating" sortKey="rating_desc" activeSort={sortOption} setSort={setSortOption} />
       </View>
-
+      
       {isLoading ? <ActivityIndicator size="large" /> : (
         <FlatList
           data={results}
@@ -108,11 +126,21 @@ export default function SearchModal() {
               productName={item.product_name}
               storeName={item.store_name}
               price={item.price}
-              onPress={() => router.push(`/product/${item.product_id}`)}
+              distance={item.distance_km}
+              rating={item.avg_rating}
+              stockLevel={item.stock_level}
+              onPress={() => {
+                // This is the key change. We now pass the entire 'item' object
+                // as a stringified JSON parameter to the next screen.
+                router.push({
+                    pathname: `/product/${item.product_id}`,
+                    params: { listingData: JSON.stringify(item) }
+                });
+            }}
             />
           )}
-          ListEmptyComponent={<Text style={styles.emptyText}>Start typing to see prices.</Text>}
-          contentContainerStyle={{paddingTop: 16}}
+          ListEmptyComponent={<Text style={styles.emptyText}>No results found</Text>}
+          contentContainerStyle={{paddingTop: 8}}
         />
       )}
     </SafeAreaView>
@@ -120,29 +148,34 @@ export default function SearchModal() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 16, backgroundColor: '#F8F5F2' },
-  searchHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 8, paddingHorizontal: 10, width: '100%', height: 40 },
-  searchInput: { flex: 1, fontSize: 16, padding: 8, marginLeft: 8 },
-  filterContainer: { 
-    flexDirection: 'row', 
-    paddingVertical: 12, 
-    borderBottomWidth: 1, 
-    borderBottomColor: '#EAEAEA', 
-    marginBottom: 10 
-  },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#EAEAEA'
-  },
-  pillText: {
-    marginLeft: 6,
-    fontWeight: '500'
-  },
-  emptyText: { textAlign: 'center', marginTop: 50, color: 'gray' },
+    container: { flex: 1, paddingHorizontal: 16, backgroundColor: '#F8F5F2' },
+    searchHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 8, paddingHorizontal: 10, width: '100%', height: 40 },
+    searchInput: { flex: 1, fontSize: 16, padding: 8, marginLeft: 8 },
+    filterContainer: {
+        flexDirection: 'row',
+        paddingVertical: 12,
+        gap: 10,
+    },
+    pill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#FFFFFF',
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: '#EAEAEA'
+    },
+    activePill: {
+        backgroundColor: '#FFC107',
+        borderColor: '#FFC107',
+    },
+    pillText: {
+        fontWeight: '600',
+        color: '#333'
+    },
+    activePillText: {
+        color: '#FFFFFF'
+    },
+    emptyText: { textAlign: 'center', marginTop: 50, color: 'gray' },
 });

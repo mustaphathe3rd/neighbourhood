@@ -3,26 +3,33 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from .. import crud, schemas
-from ..database import SessionLocal
+from ..database import SessionLocal, get_db
 
 router = APIRouter(
     prefix="/products",
     tags=["products"]
 )
 
-# Dependency to get DB session
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
 @router.get("/search", response_model=List[schemas.PriceSearchResult])
-def search_for_products_prices(q: str, city_id: int,sort_by: Optional[str] = "price_asc", db: Session = Depends(get_db)):
-    results = crud.search_prices_for_product(db=db, query=q, city_id=city_id, sort_by=sort_by)
-    # The 404 is now handled by the frontend if the list is empty
-    return results
+def search_all_products(
+    db: Session = Depends(get_db),
+    q: str = "",
+    sort_by: Optional[str] = "price_asc",
+    lat: Optional[float] = None,
+    lon: Optional[float] = None,
+    radius_km: Optional[int] = None,
+    city_id: Optional[int] = None
+):
+    # This now correctly passes all optional params to the CRUD function
+    return crud.unified_search(
+        db=db, 
+        query=q, 
+        sort_by=sort_by, 
+        lat=lat, 
+        lon=lon, 
+        radius_km=radius_km, 
+        city_id=city_id
+    )
 
 @router.get("/barcode/{barcode}", response_model=schemas.Product)
 def get_product_by_barcode(barcode: str, db: Session = Depends(get_db)):
@@ -36,8 +43,17 @@ def get_product_by_barcode(barcode: str, db: Session = Depends(get_db)):
     return db_product
 
 @router.get("/{product_id}/prices", response_model=List[schemas.PriceSearchResult])
-def read_product_prices(product_id: int,city_id: int, db: Session = Depends(get_db)):
-    prices = crud.get_prices_for_product(db=db, product_id=product_id, city_id=city_id)
+def read_product_prices(
+    product_id: int, 
+    db: Session = Depends(get_db),
+    lat: Optional[float] = None,
+    lon: Optional[float] = None,
+    radius_km: Optional[int] = None,
+    city_id: Optional[int] = None
+):
+    prices = crud.get_prices_for_product(
+        db=db, product_id=product_id, lat=lat, lon=lon, city_id=city_id
+    )
     if not prices:
-        raise HTTPException(status_code=404, detail="No prices found for this product.")
+        raise HTTPException(status_code=404, detail="No prices found for this product in the specified location.")
     return prices

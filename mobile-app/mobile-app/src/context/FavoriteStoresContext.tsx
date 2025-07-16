@@ -18,9 +18,7 @@ export const FavoriteStoresProvider = ({ children }: { children: ReactNode }) =>
   const fetchFavorites = async () => {
     if (!userToken) return;
     try {
-      const response = await apiClient.get('/favorites/stores', {
-        headers: { Authorization: `Bearer ${userToken}` }
-      });
+      const response = await apiClient.get('/favorites/stores');
       const ids = new Set(response.data.map((store: Store) => store.id));
       setFavoriteIds(ids);
     } catch (error) {
@@ -34,9 +32,7 @@ export const FavoriteStoresProvider = ({ children }: { children: ReactNode }) =>
 
   const addFavorite = async (storeId: number) => {
     try {
-      await apiClient.post(`/favorites/stores/${storeId}`, {}, {
-        headers: { Authorization: `Bearer ${userToken}` }
-      });
+      await apiClient.post(`/favorites/stores/${storeId}`);
       setFavoriteIds(prevIds => new Set(prevIds).add(storeId));
     } catch (error) {
       console.error("Failed to add favorite", error);
@@ -45,9 +41,7 @@ export const FavoriteStoresProvider = ({ children }: { children: ReactNode }) =>
 
   const removeFavorite = async (storeId: number) => {
     try {
-      await apiClient.delete(`/favorites/stores/${storeId}`, {
-        headers: { Authorization: `Bearer ${userToken}` }
-      });
+      await apiClient.delete(`/favorites/stores/${storeId}`);
       setFavoriteIds(prevIds => {
         const newIds = new Set(prevIds);
         newIds.delete(storeId);

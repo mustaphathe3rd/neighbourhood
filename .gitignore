@@ -20,4 +20,4 @@ package-lock.json
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-app.json
+mobile-app/mobile-app/app.json

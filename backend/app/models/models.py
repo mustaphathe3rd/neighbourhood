@@ -82,6 +82,7 @@ class Price(Base):
     product_id = Column(Integer, ForeignKey("products.id"))
     store_id = Column(Integer, ForeignKey("stores.id"))
     price = Column(Float, nullable=False)
+    stock_level = Column(Integer, default=2, nullable=False)
     timestamp = Column(DateTime, nullable=False)
     
     product = relationship("Product", back_populates="prices")
@@ -91,7 +92,7 @@ class Review(Base):
     __tablename__ = "reviews"
     id = Column(Integer, primary_key=True, index=True)
     rating = Column(Integer, nullable=False)
-    comment = Column(Text, nullable=False)
+    comment = Column(Text, nullable=True)
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     user_id = Column(Integer, ForeignKey("users.id"))
     product_id = Column(Integer, ForeignKey("products.id"))
