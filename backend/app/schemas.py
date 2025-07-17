@@ -108,4 +108,26 @@ class Review(ReviewBase):
     class Config:
         from_attributes = True
     
-    
+class ListItemCreate(BaseModel):
+    product_id: int
+    store_id: int
+    price: float
+
+class ListItem(BaseModel):
+    id: int
+    product_id: int
+    quantity: int
+    product_name: str
+    store_name: str
+    price_at_addition: float
+
+    class Config:
+        from_attributes = True
+
+class ShoppingList(BaseModel):
+    id: int
+    items: List[ListItem] = []
+    total_price: float = 0.0
+
+    class Config:
+        from_attributes = True

@@ -295,3 +295,56 @@ def create_review(db: Session, review:schemas.ReviewCreate, user_id: int):
 
 def get_reviews_for_product(db: Session, product_id: int):
     return db.query(models.Review).filter(models.Review.product_id == product_id).order_by(desc(models.Review.timestamp)).all()
+
+def get_or_create_shopping_list(db: Session, user_id: int):
+    """
+    Finds a shopping list for a given user. 
+    If one doesn't exist, it creates a new one.
+    """
+    shopping_list = db.query(models.ShoppingList).filter(models.ShoppingList.user_id == user_id).first()
+    if not shopping_list:
+        shopping_list = models.ShoppingList(user_id=user_id)
+        db.add(shopping_list)
+        db.commit()
+        db.refresh(shopping_list)
+    return shopping_list
+
+def add_item_to_list(db: Session, list_id: int, item_data: schemas.ListItemCreate):
+    # Check if this exact item from this exact store is already in the list
+    db_item = db.query(models.ShoppingListItem).filter(
+        models.ShoppingListItem.shopping_list_id == list_id,
+        models.ShoppingListItem.product_id == item_data.product_id,
+        models.ShoppingListItem.store_id == item_data.store_id
+    ).first()
+
+    if db_item:
+        db_item.quantity += 1
+    else:
+        db_item = models.ShoppingListItem(
+            shopping_list_id=list_id, 
+            product_id=item_data.product_id, 
+            store_id=item_data.store_id,
+            price_at_addition=item_data.price
+        )
+        db.add(db_item)
+
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+def update_item_quantity(db: Session, item_id: int, quantity: int):
+    db_item = db.query(models.ShoppingListItem).filter(models.ShoppingListItem.id == item_id).first()
+    if db_item:
+        if quantity <= 0:
+            db.delete(db_item)
+        else:
+            db_item.quantity = quantity
+        db.commit()
+    return db_item
+
+def remove_list_item(db: Session, item_id: int):
+    db_item = db.query(models.ShoppingListItem).filter(models.ShoppingListItem.id == item_id).first()
+    if db_item:
+        db.delete(db_item)
+        db.commit()
+    return

@@ -19,8 +19,7 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
     role = Column(String, nullable=False)
-    
-    # Corrected the back_populates value here
+    shopping_list = relationship("ShoppingList", back_populates="user", uselist=False, cascade="all, delete-orphan")
     favorite_stores = relationship("Store", secondary=favorite_stores_table, back_populates="favorited_by_users")
 
     store = relationship("Store", back_populates="owner", uselist=False)
@@ -73,6 +72,7 @@ class Product(Base):
     barcode = Column(String, unique=True, index=True, nullable=True)
     category = Column(String, index=True)
     
+    shopping_list_items = relationship("ShoppingListItem", back_populates="product")
     prices = relationship("Price", back_populates="product")
     reviews = relationship("Review", back_populates="product")
 
@@ -100,3 +100,23 @@ class Review(Base):
     user = relationship("User", back_populates="reviews")
     product = relationship("Product", back_populates="reviews")
     
+class ShoppingList(Base):
+    __tablename__ = "shopping_lists"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True)
+    
+    user = relationship("User", back_populates="shopping_list")
+    items = relationship("ShoppingListItem", back_populates="shopping_list", cascade="all, delete-orphan")
+    
+class ShoppingListItem(Base):
+    __tablename__ = "shopping_list_items"
+    id = Column(Integer, primary_key=True, index=True)
+    shopping_list_id = Column(Integer, ForeignKey("shopping_lists.id"))
+    product_id = Column(Integer, ForeignKey("products.id"))
+    store_id = Column(Integer, ForeignKey("stores.id")) # <-- ADD THIS
+    quantity = Column(Integer, default=1)
+    price_at_addition = Column(Float, nullable=False) # <-- ADD THIS
+
+    shopping_list = relationship("ShoppingList", back_populates="items")
+    product = relationship("Product", back_populates="shopping_list_items")
+    store = relationship("Store") # <-- ADD THIS
