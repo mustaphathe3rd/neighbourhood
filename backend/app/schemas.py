@@ -25,10 +25,21 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: str
     
+class StoreSimple(BaseModel):
+    id: int
+    name: str
     
+    class Config:
+        from_attributes = True
+        
+class StoreCreate(BaseModel):
+    name: str
+    market_area_id: int
+        
 class User(UserBase):
     id: int
     is_active: bool
+    store: Optional[StoreSimple] = None # This allows the user's 
     
     class Config:
         from_attributes = True
@@ -62,6 +73,18 @@ class Product(BaseModel):
     barcode: Optional[str] = None
     class Config: from_attributes = True
     
+class PriceBase(BaseModel):
+    price: float
+    stock_level: int
+
+# --- THIS IS THE MISSING SCHEMA ---
+class Price(PriceBase):
+    id: int
+    product: Product # This nests the product information in the response
+
+    class Config:
+        from_attributes = True
+    
 class PriceSearchResult(BaseModel):
     product_id: int
     product_name: str
@@ -80,12 +103,6 @@ class PriceSearchResult(BaseModel):
     
     class Config:
         from_attributes = True
-    
-class StoreSimple(BaseModel):
-    id: int
-    name: str
-
-    class Config: from_attributes = True
     
 class UserInReview(BaseModel):
     name: str
@@ -131,3 +148,23 @@ class ShoppingList(BaseModel):
 
     class Config:
         from_attributes = True
+        
+class PriceBase(BaseModel):
+    price: float
+    stock_level: int
+
+# Add this class for creating new price entries
+class PriceCreate(PriceBase):
+    product_id: int
+
+# Add this class for updating existing price entries
+class PriceUpdate(PriceBase):
+    pass
+
+class ProductViewLog(BaseModel):
+    product_id: int
+    store_id: int
+
+class AnalyticsResult(BaseModel):
+    product_name: str
+    view_count: int

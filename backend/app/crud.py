@@ -3,7 +3,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func as sql_func, desc, text
 from sqlalchemy import or_, func
 from .utils import auth
-from . import models, schemas
+from . import schemas
+from datetime import datetime
 from .models import models
 from geoalchemy2 import Geography 
 from geoalchemy2.shape import to_shape 
@@ -348,3 +349,80 @@ def remove_list_item(db: Session, item_id: int):
         db.delete(db_item)
         db.commit()
     return
+
+def create_store_for_user(db: Session, store_data: schemas.StoreCreate, user_id: int):
+    # The function creates a new Store and links it to the user's ID.
+    db_store = models.Store(
+        name=store_data.name,
+        market_area_id=store_data.market_area_id,
+        owner_id=user_id
+    )
+    db.add(db_store)
+    db.commit()
+    db.refresh(db_store)
+    return db_store
+
+def get_prices_for_store(db: Session, store_id: int):
+    """
+    Gets all of the Price objects associated with a specific store.
+    """
+    return db.query(models.Price).filter(models.Price.store_id == store_id).all()
+
+def get_all_products(db: Session):
+    return db.query(models.Product).order_by(models.Product.name).all()
+
+def create_price_for_store(db: Session, store_id: int, price_data: schemas.PriceCreate):
+    # This function creates a new Price entry linked to a store and product
+    db_price = models.Price(
+        price=price_data.price,
+        stock_level=price_data.stock_level,
+        product_id=price_data.product_id,
+        store_id=store_id,
+        timestamp=datetime.utcnow()
+    )
+    db.add(db_price)
+    db.commit()
+    db.refresh(db_price)
+    return db_price
+
+def get_price_by_id(db: Session, price_id: int):
+    # A helper function to find a specific price entry
+    return db.query(models.Price).filter(models.Price.id == price_id).first()
+
+def update_price(db: Session, price_id: int, price_data: schemas.PriceUpdate):
+    db_price = get_price_by_id(db, price_id=price_id)
+    if db_price:
+        db_price.price = price_data.price
+        db_price.stock_level = price_data.stock_level
+        db_price.timestamp = datetime.utcnow()
+        db.commit()
+        db.refresh(db_price)
+    return db_price
+
+def delete_price(db: Session, price_id: int):
+    db_price = get_price_by_id(db, price_id=price_id)
+    if db_price:
+        db.delete(db_price)
+        db.commit()
+    return db_price 
+
+def log_product_view(db: Session, view_data: schemas.ProductViewLog):
+    db_view = models.ProductView(
+        product_id=view_data.product_id,
+        store_id=view_data.store_id
+    )
+    db.add(db_view)
+    db.commit()
+    return
+
+def get_view_counts_for_store(db: Session, store_id: int):
+    # This query counts views and groups them by product for the specified store
+    results = db.query(
+        models.Product.name,
+        sql_func.count(models.ProductView.id).label("view_count")
+    ).join(models.ProductView).filter(
+        models.ProductView.store_id == store_id
+    ).group_by(models.Product.name).order_by(desc("view_count")).all()
+    
+    # Format the results
+    return [{"product_name": name, "view_count": count} for name, count in results]

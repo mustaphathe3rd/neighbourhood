@@ -1,26 +1,37 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { getMyProfile } from '../api/client';
+import CreateStoreForm from '../components/CreateStoreForm'; 
+import InventoryPage from './InventoryPage';
 
 export default function DashboardPage() {
-  const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const handleLogout = () => {
-    localStorage.removeItem('userToken');
-    navigate('/login');
+  const fetchProfile = async () => {
+    try {
+      const response = await getMyProfile();
+      setUser(response.data);
+    } catch (error) {
+      console.error("Failed to fetch profile", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-100">
-        <header className="bg-white shadow">
-            <nav className="container mx-auto px-6 py-4 flex justify-between items-center">
-                <h1 className="text-xl font-bold text-gray-800">Neighbor Dashboard</h1>
-                <button onClick={handleLogout} className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">Logout</button>
-            </nav>
-        </header>
-        <main className="container mx-auto px-6 py-8">
-            <h2 className="text-3xl font-bold text-gray-800">Welcome, Store Owner!</h2>
-            <p className="mt-2 text-gray-600">This is where your inventory and analytics will go.</p>
-        </main>
-    </div>
-  );
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  // When a store is created, we need to refresh the profile
+  const onStoreCreated = () => {
+      setIsLoading(true);
+      fetchProfile();
+  }
+
+  if (isLoading) return <p className="text-center mt-8">Loading your profile...</p>;
+
+  // Conditionally render based on whether user.store exists
+  return user?.store 
+    ? <InventoryPage /> 
+    : <CreateStoreForm onStoreCreated={onStoreCreated} />;
 }

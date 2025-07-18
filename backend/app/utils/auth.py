@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 
 # Import the new central 'get_db' and other modules correctly
 from ..database import get_db
-from .. import crud, models, schemas
+from .. import crud, schemas
+from ..models import models
 from ..config import settings
 
 # This dependency tells FastAPI how to find the token
@@ -54,3 +55,14 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user is None:
         raise credentials_exception
     return user
+
+def get_current_store_owner(current_user: models.User = Depends(get_current_user)):
+    """
+    A dependency that checks if the current user is a store owner.
+    Raises a 403 Forbidden error if they are not.
+    """
+    if current_user.role != "store_owner":
+        raise HTTPException(status_code=403, detail="Not authorized to perform this action")
+    if not current_user.store:
+        raise HTTPException(status_code=404, detail="This user does not own a store")
+    return current_user

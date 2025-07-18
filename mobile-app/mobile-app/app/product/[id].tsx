@@ -1,7 +1,7 @@
 // app/product/[id].tsx
 import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity, Linking, Dimensions, Alert, Button, ActivityIndicator, Modal, TextInput,Keyboard, KeyboardAvoidingView, TouchableWithoutFeedback, Platform } from 'react-native';
 import { useLocalSearchParams, Stack, router } from 'expo-router';
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState, useMemo} from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView from 'react-native-maps';
@@ -11,6 +11,7 @@ import Toast from 'react-native-toast-message';
 import { Rating } from 'react-native-ratings';
 import apiClient from '@/src/api/client';
 import { ReviewCard } from '@/src/components/ReviewCard';
+import { LocationContext } from '@/src/context/LocationContext';
 
 // This is the shape of the data we expect to receive
 type PriceResult = {
@@ -38,29 +39,68 @@ const postReview = async (productId: number, rating: number, comment: string) =>
 export default function ProductDetailScreen() {
   const { id, listingData } = useLocalSearchParams();
   const { addItem } = useContext(ShoppingListContext);
-
+  const { activeLocation, radius } = useContext(LocationContext);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isReviewModalVisible, setReviewModalVisible] = useState(false);
   const [myRating, setMyRating] = useState(3);
   const [myComment, setMyComment] = useState('');
 
-  const fetchReviews = async () => {
-    if (!id || typeof id !== 'string') return;
-    setIsLoading(true);
+  const listing: PriceResult | null = useMemo(() => {
+    if (!listingData || typeof listingData !== 'string') return null;
     try {
-        const response = await apiClient.get(`/reviews/product/${id}`);
-        setReviews(response.data);
-    } catch (error) { 
-        console.error("Failed to fetch reviews", error);
-    } finally {
-        setIsLoading(false);
+      return JSON.parse(listingData);
+    } catch (e) {
+      return null;
     }
+  }, [listingData]);
+
+  const fetchReviews = async () => {
+      if (!id) return;
+      setIsLoading(true);
+      try {
+          const response = await apiClient.get(`/reviews/product/${id}`);
+          setReviews(response.data);
+      } catch (error) { 
+          console.error("Failed to fetch reviews", error);
+      } finally {
+          setIsLoading(false);
+      }
   };
 
   useEffect(() => {
-    fetchReviews();
+      fetchReviews();
   }, [id]);
+
+  useEffect(() => {
+    if (!listing) return;
+    
+    // Only log if we have the listing data
+    const logView = async () => {
+      try {
+        // We don't need to wait for this, just send the request
+        apiClient.post('/analytics/log-view', {
+          product_id: listing.product_id,
+          store_id: listing.store_id
+        });
+        console.log(`Logged view for product ${listing.product_id} at store ${listing.store_id}`);
+      } catch (err) {
+        // Fail silently, not critical for user experience
+        console.error("Failed to log view", err);
+      }
+    }
+    
+    logView();
+  }, [listing]);
+
+  if (!listing) {
+    return (
+        <SafeAreaView style={styles.centered}>
+            <Text>Could not load product details.</Text>
+            <Button title="Go Back" onPress={() => router.back()} />
+        </SafeAreaView>
+    );
+  }
 
  const handleSubmitReview = async () => {
     if (!id || typeof id !== 'string') {
@@ -100,29 +140,16 @@ export default function ProductDetailScreen() {
         console.error("Review submission failed:", error.response?.data || error);
     }
 };
-
-  // If data wasn't passed correctly, show an error and provide a way back.
-  if (!listingData || typeof listingData !== 'string') {
-    return (
-        <SafeAreaView style={styles.centered}>
-            <Text>Could not load product details.</Text>
-            <Button title="Go Back" onPress={() => router.back()} />
-        </SafeAreaView>
-    );
-  }
-
-  // Parse the data received from the previous screen
-  const listing: PriceResult = JSON.parse(listingData);
-
   const handleAddToList = () => {
-    const productToAdd = {
-        id: listing.product_id,
-        name: listing.product_name,
-        imageUrl: `https://picsum.photos/seed/${listing.product_id}/200`
-    };
-    addItem(productToAdd);
-    Toast.show({ type: 'success', text1: 'Added to List' });
+    // FIX: The object passed to addItem now matches the expected type
+    addItem({
+        product_id: listing.product_id,
+        store_id: listing.store_id,
+        price: listing.price,
+    });
+    Toast.show({ type: 'success', text1: `${listing.product_name} added to list!` });
   };
+
 
     const handleGetDirections = (lat?: number, lon?: number) => {
     if (!lat || !lon) {

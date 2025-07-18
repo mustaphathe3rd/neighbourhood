@@ -3,7 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from .. import crud, schemas
+from ..models import models
 from ..database import SessionLocal, get_db
+from..utils.auth import get_current_user
 
 router = APIRouter(
     prefix="/products",
@@ -57,3 +59,8 @@ def read_product_prices(
     if not prices:
         raise HTTPException(status_code=404, detail="No prices found for this product in the specified location.")
     return prices
+
+@router.get("/all", response_model=List[schemas.Product])
+def read_all_products(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    # This is a protected route so only logged-in users can see the product catalog
+    return crud.get_all_products(db=db)

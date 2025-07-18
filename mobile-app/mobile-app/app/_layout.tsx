@@ -33,6 +33,7 @@ const RootLayoutNav = () => {
       {/* Add this new screen with modal presentation */}
       <Stack.Screen name="location-settings" options={{ presentation: 'modal', title: 'Location Settings' }} />
       <Stack.Screen name="search-modal" options={{ presentation: 'modal', animation: 'fade' }} />
+      <Stack.Screen name="barcode-scanner" options={{ presentation: 'modal', title: 'Scan Barcode' }} />
     </Stack>
 );
 };
@@ -44,10 +45,10 @@ export default function RootLayout() {
                 <ShoppingListProvider> 
                     <FavoriteStoresProvider>  {/* <-- Wrap here */}
                         <RootLayoutNav />
-                          <Toast />
                     </FavoriteStoresProvider>
                 </ShoppingListProvider>
             </LocationProvider>
+            <Toast />
         </AuthProvider>
     )
 }

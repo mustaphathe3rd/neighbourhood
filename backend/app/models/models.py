@@ -120,3 +120,10 @@ class ShoppingListItem(Base):
     shopping_list = relationship("ShoppingList", back_populates="items")
     product = relationship("Product", back_populates="shopping_list_items")
     store = relationship("Store") # <-- ADD THIS
+    
+class ProductView(Base):
+    __tablename__ = "product_views"
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey("products.id"))
+    store_id = Column(Integer, ForeignKey("stores.id"))
+    timestamp = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())

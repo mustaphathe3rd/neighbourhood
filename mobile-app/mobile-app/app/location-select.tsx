@@ -1,10 +1,11 @@
 import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
 import { LocationContext } from '@/src/context/LocationContext';
 import apiClient from '@/src/api/client';
-import { router } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import React, { useContext, useEffect, useState } from 'react';
-import { FlatList, StyleSheet, TouchableOpacity, View, Button } from 'react-native';
+import { FlatList, StyleSheet, TouchableOpacity, View, Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
 type State = { id: number; name: string; }
 type City = { id: number; name: string; }
@@ -16,72 +17,103 @@ export default function LocationSelectScreen() {
     const [selectedState, setSelectedState] = useState<State | null>(null);
     const { setActiveLocation } = useContext(LocationContext);
 
-    // Fetch all states when the component mounts
     useEffect(() => {
         apiClient.get('/locations/states').then(response => setStates(response.data));
     }, []);
 
-    // When a state is selected, fetch its cities
     const handleSelectState = async (state: State) => {
         setSelectedState(state);
         try {
             const response = await apiClient.get(`/locations/cities/${state.id}`);
             setCities(response.data);
-            setStep('city'); // Move to the next step
+            setStep('city');
         } catch (error) {
             console.error("Failed to fetch cities", error);
         }
     }
 
-    // When a city is selected, update the global context and go back
     const handleSelectCity = (city: City) => {
         setActiveLocation({ type: 'manual', cityId: city.id, cityName: city.name });
         router.back();
     }
 
     return (
-        <ThemedView style={styles.container}>
-            {step === 'state' && (
-                <>
-                    <ThemedText type="title">Select Your State</ThemedText>
-                    <FlatList
-                        data={states}
-                        keyExtractor={(item) => item.id.toString()}
-                        renderItem={({ item }) => (
-                            <TouchableOpacity style={styles.itemCard} onPress={() => handleSelectState(item)}>
-                                <ThemedText type="defaultSemiBold">{item.name}</ThemedText>
-                            </TouchableOpacity>
-                        )}
-                    />
-                </>
-            )}
-            {step === 'city' && selectedState && (
-                <>
-                    <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 20}}>
-                        <Button title="< Back to States" onPress={() => setStep('state')} />
-                        <ThemedText type="title" style={{marginLeft: 10}}>Select City</ThemedText>
-                    </View>
-                    <FlatList
-                        data={cities}
-                        keyExtractor={(item) => item.id.toString()}
-                        renderItem={({ item }) => (
-                            <TouchableOpacity style={styles.itemCard} onPress={() => handleSelectCity(item)}>
-                                <ThemedText type="defaultSemiBold">{item.name}</ThemedText>
-                            </TouchableOpacity>
-                        )}
-                    />
-                </>
-            )}
-        </ThemedView>
+        <SafeAreaView style={styles.safeArea}>
+            <Stack.Screen options={{ title: 'Select Location' }} />
+            <View style={styles.container}>
+                {step === 'state' && (
+                    <>
+                        <Text style={styles.title}>Select Your State</Text>
+                        <FlatList
+                            data={states}
+                            keyExtractor={(item) => item.id.toString()}
+                            renderItem={({ item }) => (
+                                <TouchableOpacity style={styles.itemCard} onPress={() => handleSelectState(item)}>
+                                    <Text style={styles.itemText}>{item.name}</Text>
+                                    <Ionicons name="chevron-forward" size={20} color="#AEAEB2" />
+                                </TouchableOpacity>
+                            )}
+                        />
+                    </>
+                )}
+                {step === 'city' && selectedState && (
+                    <>
+                        <TouchableOpacity style={styles.backButton} onPress={() => setStep('state')}>
+                            <Ionicons name="arrow-back" size={24} color="#333" />
+                            <Text style={styles.backButtonText}>Back to States</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.title}>Select City in {selectedState.name}</Text>
+                        <FlatList
+                            data={cities}
+                            keyExtractor={(item) => item.id.toString()}
+                            renderItem={({ item }) => (
+                                <TouchableOpacity style={styles.itemCard} onPress={() => handleSelectCity(item)}>
+                                    <Text style={styles.itemText}>{item.name}</Text>
+                                    <Ionicons name="chevron-forward" size={20} color="#AEAEB2" />
+                                </TouchableOpacity>
+                            )}
+                        />
+                    </>
+                )}
+            </View>
+        </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, padding: 20, paddingTop: 60 },
+    safeArea: { flex: 1, backgroundColor: '#F8F5F2' },
+    container: { flex: 1, padding: 16 },
+    title: {
+        fontSize: 28,
+        fontWeight: 'bold',
+        color: '#1A1A1A',
+        marginBottom: 20,
+        textAlign: 'center'
+    },
+    backButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    backButtonText: {
+        fontSize: 16,
+        color: '#1A1A1A',
+        marginLeft: 8,
+        fontWeight: '500'
+    },
     itemCard: {
-        backgroundColor: '#1C1C1E',
+        backgroundColor: '#FFFFFF',
         padding: 20,
-        borderRadius: 8,
+        borderRadius: 12,
         marginBottom: 12,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#EAEAEA'
+    },
+    itemText: {
+        fontSize: 17,
+        fontWeight: '600',
     }
 });

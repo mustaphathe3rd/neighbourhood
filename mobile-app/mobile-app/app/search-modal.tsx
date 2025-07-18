@@ -1,5 +1,5 @@
-import { StyleSheet, View, ActivityIndicator, FlatList, Text, TouchableOpacity, TextInput } from 'react-native';
-import { router, Stack } from 'expo-router';
+import { StyleSheet, View, ActivityIndicator, FlatList, Text, TouchableOpacity, TextInput, Keyboard, TouchableWithoutFeedback } from 'react-native';
+import { router, Stack, Link } from 'expo-router';
 import React, { useEffect, useState, useContext } from 'react';
 import apiClient from '@/src/api/client';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -109,40 +109,61 @@ export default function SearchModal() {
         ),
         headerBackVisible: false,
       }} />
-      
-      <View style={styles.filterContainer}>
-        <SortButton label="Distance" sortKey="distance_asc" activeSort={sortOption} setSort={setSortOption} />
-        <SortButton label="Price" sortKey="price_asc" activeSort={sortOption} setSort={setSortOption} />
-        <SortButton label="Rating" sortKey="rating_desc" activeSort={sortOption} setSort={setSortOption} />
-      </View>
-      
-      {isLoading ? <ActivityIndicator size="large" /> : (
-        <FlatList
-          data={results}
-          keyExtractor={(item, index) => `${item.product_id}-${item.store_name}-${index}`}
-          renderItem={({ item }) => (
-            <PriceResultCard
-              imageUrl={`https://picsum.photos/seed/${item.product_id}/200`}
-              productName={item.product_name}
-              storeName={item.store_name}
-              price={item.price}
-              distance={item.distance_km}
-              rating={item.avg_rating}
-              stockLevel={item.stock_level}
-              onPress={() => {
-                // This is the key change. We now pass the entire 'item' object
-                // as a stringified JSON parameter to the next screen.
-                router.push({
-                    pathname: `/product/${item.product_id}`,
-                    params: { listingData: JSON.stringify(item) }
-                });
-            }}
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={{flex: 1}}>
+          <View style={styles.filterContainer}>
+            <SortButton label="Distance" sortKey="distance_asc" activeSort={sortOption} setSort={setSortOption} />
+            <SortButton label="Price" sortKey="price_asc" activeSort={sortOption} setSort={setSortOption} />
+            <SortButton label="Rating" sortKey="rating_desc" activeSort={sortOption} setSort={setSortOption} />
+          </View>
+          
+          <View style={styles.orSeparator}>
+            <View style={styles.line} />
+            <Text style={styles.orText}>OR</Text>
+            <View style={styles.line} />
+          </View>
+
+          <Link href="/barcode-scanner" asChild>
+            <TouchableOpacity style={styles.barcodeButton}>
+                <Ionicons name="camera-outline" size={22} color="#FFF" />
+                <Text style={styles.barcodeButtonText}>Scan Barcode</Text>
+            </TouchableOpacity>
+          </Link>
+
+          <View style={styles.resultsHeader}>
+            <Text style={styles.resultsTitle}>Results</Text>
+          </View>
+
+          {isLoading ? <ActivityIndicator size="large" /> : (
+            <FlatList
+              data={results}
+              keyExtractor={(item, index) => `${item.product_id}-${item.store_name}-${index}`}
+              renderItem={({ item }) => (
+                <PriceResultCard
+                  imageUrl={`https://picsum.photos/seed/${item.product_id}/200`}
+                  productName={item.product_name}
+                  storeName={item.store_name}
+                  price={item.price}
+                  distance={item.distance_km}
+                  rating={item.avg_rating}
+                  stockLevel={item.stock_level}
+                  onPress={() => {
+                    // This is the key change. We now pass the entire 'item' object
+                    // as a stringified JSON parameter to the next screen.
+                    router.push({
+                        pathname: `/product/${item.product_id}`,
+                        params: { listingData: JSON.stringify(item) }
+                    });
+                }}
+                />
+              )}
+              ListEmptyComponent={<Text style={styles.emptyText}>No results found</Text>}
+              contentContainerStyle={{paddingTop: 8}}
+              keyboardShouldPersistTaps="handled"
             />
           )}
-          ListEmptyComponent={<Text style={styles.emptyText}>No results found</Text>}
-          contentContainerStyle={{paddingTop: 8}}
-        />
-      )}
+        </View>
+      </TouchableWithoutFeedback>
     </SafeAreaView>
   );
 }
@@ -178,4 +199,31 @@ const styles = StyleSheet.create({
         color: '#FFFFFF'
     },
     emptyText: { textAlign: 'center', marginTop: 50, color: 'gray' },
+     orSeparator: { flexDirection: 'row', alignItems: 'center', marginVertical: 20 },
+    line: { flex: 1, height: 1, backgroundColor: '#EAEAEA' },
+    orText: { marginHorizontal: 10, color: 'gray', fontWeight: '500' },
+    barcodeButton: {
+        backgroundColor: '#FFC107', // Use your brand color
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 14,
+        borderRadius: 8,
+        marginBottom: 20,
+    },
+    barcodeButtonText: {
+        color: '#FFF',
+        fontSize: 16,
+        fontWeight: 'bold',
+        marginLeft: 10,
+    },
+    resultsHeader: {
+        paddingBottom: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: '#EAEAEA',
+    },
+    resultsTitle: {
+        fontSize: 18,
+        fontWeight: 'bold'
+    }, 
 });
