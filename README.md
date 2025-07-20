@@ -50,6 +50,12 @@ This repository contains the complete monorepo for the Neighbor ecosystem, inclu
 * Git
 
 ---
+First clone the repo with command:
+```bash
+git clone https://github.com/mustaphathe3rd/neighbourhood.git
+```
+
+---
 
 ### 1. Backend Setup
 The backend server powers the entire application.
