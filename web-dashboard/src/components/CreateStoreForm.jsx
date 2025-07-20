@@ -38,20 +38,21 @@ export default function CreateStoreForm({ onStoreCreated }) {
         }
     };
 
-    return (
+   return (
         <div className="flex items-center justify-center min-h-screen bg-gray-50">
-            <div className="p-8 bg-white rounded-lg shadow-md w-full max-w-lg">
-                <h2 className="text-2xl font-bold text-center mb-2">Welcome to Neighbor!</h2>
-                <p className="text-center text-gray-600 mb-6">Let's set up your store.</p>
+            <div className="p-8 bg-white rounded-lg shadow-lg w-full max-w-lg">
+                <h2 className="text-3xl font-bold text-center mb-1">Welcome to Neighbor!</h2>
+                <p className="text-center text-gray-500 mb-8">Let's set up your store.</p>
                 {error && <p className="text-red-500 text-center mb-4">{error}</p>}
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label htmlFor="storeName" className="block text-gray-700 font-bold mb-2">Store Name</label>
-                        <input id="storeName" type="text" value={storeName} onChange={(e) => setStoreName(e.target.value)} required className="w-full p-2 border rounded-md" />
+                        <label htmlFor="storeName" className="block text-gray-700 font-semibold mb-2">Store Name</label>
+                        <input id="storeName" type="text" value={storeName} onChange={(e) => setStoreName(e.target.value)} required 
+                               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400" />
                     </div>
                     <div>
-                        <label className="block text-gray-700 font-bold mb-2">Location</label>
-                        <select onChange={(e) => setSelectedState(e.target.value)} required className="w-full p-2 mb-2 border rounded-md bg-white">
+                        <label className="block text-gray-700 font-semibold mb-2">Location</label>
+                        <select onChange={(e) => setSelectedState(e.target.value)} required className="w-full p-2 mb-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400">
                             <option value="">Select State</option>
                             {states.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
@@ -59,12 +60,14 @@ export default function CreateStoreForm({ onStoreCreated }) {
                             <option value="">Select City</option>
                             {cities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
-                        <select onChange={(e) => setSelectedMarket(e.target.value)} required className="w-full p-2 border rounded-md bg-white" disabled={!markets.length}>
+                        <select onChange={(e) => setSelectedMarket(e.target.value)} required 	className="w-full p-2 border rounded-md bg-white" disabled={!markets.length}>
                             <option value="">Select Market Area</option>
                             {markets.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                         </select>
                     </div>
-                    <button type="submit" className="w-full bg-yellow-500 text-white p-3 rounded-md hover:bg-yellow-600 font-bold">Create Store</button>
+                    <button type="submit" className="w-full bg-yellow-500 text-white p-3 rounded-lg hover:bg-yellow-600 font-bold transition-colors">
+                        Create Store
+                    </button>
                 </form>
             </div>
         </div>

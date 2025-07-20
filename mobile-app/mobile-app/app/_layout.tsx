@@ -5,6 +5,7 @@ import { ShoppingListProvider } from '../src/context/ShoppingListContext';
 import { useContext, useEffect } from 'react';
 import Toast from 'react-native-toast-message';
 import { FavoriteStoresProvider } from '../src/context/FavoriteStoresContext';
+import { QueryClient, QueryClientProvider} from '@tanstack/react-query'
 
 const RootLayoutNav = () => {
   const { userToken, isLoading } = useContext(AuthContext);
@@ -38,8 +39,11 @@ const RootLayoutNav = () => {
 );
 };
 
+const queryClient = new QueryClient();
+
 export default function RootLayout() {
     return (
+       <QueryClientProvider client={queryClient}> 
         <AuthProvider>
             <LocationProvider>
                 <ShoppingListProvider> 
@@ -50,5 +54,6 @@ export default function RootLayout() {
             </LocationProvider>
             <Toast />
         </AuthProvider>
+      </QueryClientProvider>
     )
 }

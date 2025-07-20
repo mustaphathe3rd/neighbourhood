@@ -3,26 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate,Link } from 'react-router-dom';
 import { getInventory,addPrice, updatePrice, deletePrice  } from '../api/client';
 import PriceFormModal from '../components/PriceFormModal';
-
-// A reusable component for the page layout
-const DashboardLayout = ({ children, onLogout }) => (
-    <div className="min-h-screen bg-gray-100">
-        <header className="bg-white shadow-sm">
-            <nav className="container mx-auto px-6 py-4 flex justify-between items-center">
-                <h1 className="text-xl font-bold text-gray-800">Neighbor Dashboard</h1>
-                <Link to="/dashboard/inventory" className="text-gray-600 font-semibold hover:text-yellow-500">Inventory</Link>
-                <Link to="/dashboard/analytics" className="text-gray-600 font-semibold hover:text-yellow-500">Analytics</Link>
-                <button onClick={onLogout} className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition-colors">
-                    Logout
-                </button>
-            </nav>
-        </header>
-        <main className="container mx-auto px-6 py-8">
-            {children}
-        </main>
-    </div>
-);
-
+import DashboardLayout from '../components/DashboardLayout';
 
 export default function InventoryPage() {
     const [inventory, setInventory] = useState([]);
@@ -102,9 +83,9 @@ export default function InventoryPage() {
     }
 
     return (
-        <DashboardLayout onLogout={handleLogout}>
+        <DashboardLayout>
             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-800">My Inventory</h2>
+                <h2 className="text-3xl font-bold text-gray-800">Inventory</h2>
                 <button onClick={openAddModel} className="bg-yellow-500 text-white font-bold px-4 py-2 rounded-md hover:bg-yellow-600 transition-colors">
                     + Add New Price
                 </button>

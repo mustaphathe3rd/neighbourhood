@@ -4,13 +4,14 @@ import { Rating } from 'react-native-ratings';
 import { Ionicons } from '@expo/vector-icons';
 
 type PriceResultCardProps = {
-  imageUrl: string;
+  imageUrl?: string;
   productName: string;
   storeName: string;
   price: number;
   distance?: number | null;
   rating?: number | null;
   stockLevel: number;
+  isOutOfState: boolean;
   onPress: () => void;
 };
 
@@ -29,12 +30,13 @@ const AvailabilityTag = ({ stockLevel }: {stockLevel: number }) => {
   )
 }
 
-export const PriceResultCard = ({ imageUrl, productName, storeName, price, distance, rating, stockLevel, onPress }: PriceResultCardProps) => {
+export const PriceResultCard = ({ imageUrl, productName, storeName, price, distance, rating, stockLevel, isOutOfState, onPress }: PriceResultCardProps) => {
   return (
     <TouchableOpacity style={styles.cardContainer} onPress={onPress}>
       <Image source={{ uri: imageUrl }} style={styles.image} />
       <View style={styles.infoContainer}>
         <Text style={styles.name} numberOfLines={2}>{productName}</Text>
+        {isOutOfState && <Ionicons name="alert-circle-outline" size={20} color="#FF9F0A" />}
         <Text style={styles.store} numberOfLines={1}>at {storeName}</Text>
         
         <View style={styles.metaContainer}>
@@ -71,4 +73,13 @@ const styles = StyleSheet.create({
   price: { fontSize: 18, fontWeight: 'bold', color: '#1A1A1A' },
   tag: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   tagText: { color: 'white', fontSize: 11, fontWeight: 'bold' },
+   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  outOfStateCard: {
+    borderColor: '#FF9F0A', // Add an orange border to highlight
+    borderWidth: 1.5,
+  },
 });

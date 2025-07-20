@@ -3,7 +3,7 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
-const API_BASE_URL = 'https://b7336d93d838.ngrok-free.app'; // Paste your active ngrok URL here
+const API_BASE_URL = 'https://91158a5589b5.ngrok-free.app'; // Paste your active ngrok URL here
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -42,7 +42,7 @@ export const getProductByBarcode = async (barcode: string) => {
     // This endpoint already exists form a previous step
     const response = await apiClient.get(`/products/barcode/${barcode}`);
     return response.data;
-  } catch (error){
+  } catch (error) {
     console.error("Barcode lookup failed:", error);
     throw error;
   }

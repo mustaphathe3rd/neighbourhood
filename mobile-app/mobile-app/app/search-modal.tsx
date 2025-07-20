@@ -1,6 +1,7 @@
 import { StyleSheet, View, ActivityIndicator, FlatList, Text, TouchableOpacity, TextInput, Keyboard, TouchableWithoutFeedback } from 'react-native';
 import { router, Stack, Link } from 'expo-router';
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useContext, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import apiClient from '@/src/api/client';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PriceResultCard } from '@/src/components/PriceResultCard';
@@ -15,7 +16,8 @@ type PriceResult = {
   stock_level: number;
   avg_rating: number | null;
   distance_km: number | null;
-   
+  is_out_of_state: boolean;
+  image_url?: string; 
 };
 
 // A reusable sort button component
@@ -31,63 +33,44 @@ const SortButton = ({ label, sortKey, activeSort, setSort }: { label: string, so
   );
 };
 
-
 export default function SearchModal() {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<PriceResult[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [sortOption, setSortOption] = useState('distance_asc');
   const { activeLocation, radius } = useContext(LocationContext);
+  const [sortOption, setSortOption] = useState('distance_asc');
 
-  useEffect(() => {
-    const handleSearch = async () => {
-      // Guard clause: Don't search if there's no query or no active location.
-      if (!query.trim() || !activeLocation) {
-        setResults([]);
-        return;
-      }
+  // This is the query key. TanStack Query uses it to cache the data.
+  // It will automatically re-fetch if any of these values change.
+  const searchQueryKey = ['search', query, activeLocation, sortOption, radius];
 
-      setIsLoading(true);
+  // The data-fetching function
+  const fetchSearch = async () => {
+    if (!query.trim() || !activeLocation) return [];
 
-      // --- THIS IS THE CORRECTED LOGIC ---
-      // Dynamically build the search parameters based on location type.
-      const params: any = { 
-        q: query, 
-        sort_by: sortOption
-      };
-
-      if (activeLocation.type === 'gps' && activeLocation.coords) {
-        params.lat = activeLocation.coords.latitude;
-        params.lon = activeLocation.coords.longitude;
-        params.radius_km = radius; // Use a default radius for GPS search
-      } else if (activeLocation.type === 'manual' && activeLocation.cityId) {
-        params.city_id = activeLocation.cityId;
-      } else {
-        // If location type is invalid or missing data, don't search.
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        const response = await apiClient.get('/products/search', { params });
-        setResults(response.data);
-      } catch (error) {
-        console.error("Search failed", error);
-        setResults([]);
-      } finally {
-        setIsLoading(false);
-      }
+    const params: any = { 
+      q: query, 
+      sort_by: sortOption
     };
 
-    // Use a small delay (debounce) to avoid searching on every keystroke
-    const timeoutId = setTimeout(() => handleSearch(), 300);
-    return () => clearTimeout(timeoutId);
+    if (activeLocation.type === 'gps' && activeLocation.coords) {
+      params.lat = activeLocation.coords.latitude;
+      params.lon = activeLocation.coords.longitude;
+      params.radius_km = radius;
+    } else if (activeLocation.type === 'manual' && activeLocation.cityId) {
+      params.city_id = activeLocation.cityId;
+    } else {
+      return [];
+    }
 
-  }, [query, activeLocation, sortOption, radius]);
+    const { data } = await apiClient.get('/products/search', { params });
+    return data;
+  };
 
-  // const toggleSortOrder = () => {
-  //   setSortOption(currentOption => currentOption === 'price_asc' ? 'price_desc' : 'price_asc');
-  // };
+  // The useQuery hook!
+  const { data: results, isLoading, isError } = useQuery({
+    queryKey: searchQueryKey,
+    queryFn: fetchSearch,
+    enabled: !!query.trim() && !!activeLocation, // Only run the query if we have a search term
+  });
 
   return (
     <SafeAreaView style={styles.container}>
@@ -136,17 +119,18 @@ export default function SearchModal() {
 
           {isLoading ? <ActivityIndicator size="large" /> : (
             <FlatList
-              data={results}
+              data={results || []}
               keyExtractor={(item, index) => `${item.product_id}-${item.store_name}-${index}`}
               renderItem={({ item }) => (
                 <PriceResultCard
-                  imageUrl={`https://picsum.photos/seed/${item.product_id}/200`}
+                  imageUrl={item.image_url}
                   productName={item.product_name}
                   storeName={item.store_name}
                   price={item.price}
                   distance={item.distance_km}
                   rating={item.avg_rating}
                   stockLevel={item.stock_level}
+                  isOutOfState={item.is_out_of_state}
                   onPress={() => {
                     // This is the key change. We now pass the entire 'item' object
                     // as a stringified JSON parameter to the next screen.

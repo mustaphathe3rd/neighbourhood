@@ -28,24 +28,29 @@ export default function LoginPage() {
     }
   };
 
-  return (
+   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50">
-      <div className="p-8 bg-white rounded-lg shadow-md w-full max-w-sm">
-        <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">Store Dashboard Login</h2>
+      <div className="p-8 bg-white rounded-lg shadow-lg w-full max-w-md">
+        <h2 className="text-3xl font-bold text-center mb-1 text-gray-900">Welcome Back!</h2>
+        <p className="text-center text-gray-500 mb-8">Login to your Store Dashboard</p>
         {error && <p className="text-red-500 text-center mb-4">{error}</p>}
-        <form onSubmit={handleLogin}>
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="email">Email</label>
-            <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full p-2 border rounded shadow-sm" />
+        <form onSubmit={handleLogin} className="space-y-6">
+          <div>
+            <label className="block text-gray-700 font-semibold mb-2" htmlFor="email">Email Address</label>
+            <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required 
+                   className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400" />
           </div>
-          <div className="mb-6">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="password">Password</label>
-            <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full p-2 border rounded shadow-sm" />
+          <div>
+            <label className="block text-gray-700 font-semibold mb-2" htmlFor="password">Password</label>
+            <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required 
+                   className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400" />
           </div>
-          <button type="submit" className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition-colors">Login</button>
+          <button type="submit" className="w-full bg-yellow-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-yellow-600 transition-colors">
+            Login
+          </button>
         </form>
-        <p className="text-center text-sm text-gray-600 mt-4">
-          Need an account? <Link to="/register" className="text-blue-600 hover:underline">Register here</Link>
+        <p className="text-center text-sm text-gray-600 mt-6">
+          Need an account? <Link to="/register" className="text-yellow-500 font-bold hover:underline">Register here</Link>
         </p>
       </div>
     </div>

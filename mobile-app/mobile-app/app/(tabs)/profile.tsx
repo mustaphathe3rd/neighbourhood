@@ -1,12 +1,12 @@
-import React, { useContext, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator } from 'react-native';
+import React, { useContext, useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { AuthContext } from '@/src/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import apiClient from '@/src/api/client';
-import { useIsFocused } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 
-// A reusable component for each settings item
+// Reusable components (can be moved to their own files if desired)
 const SettingsItem = ({ label, icon, onPress }: { label: string, icon: any, onPress: () => void }) => (
   <TouchableOpacity style={styles.itemContainer} onPress={onPress}>
     <View style={{ flexDirection: 'row', alignItems: 'center'}}>
@@ -21,60 +21,69 @@ const SectionHeader = ({ title }: { title: string }) => (
   <Text style={styles.sectionHeader}>{title.toUpperCase()}</Text>
 );
 
-type FavoriteStore = {
-    id: number;
-    name: string;
-}
+// Define types for the data we expect
+type FavoriteStore = { id: number; name: string; };
+type UserProfile = { name: string; email: string; };
+
 
 export default function ProfileScreen() {
   const { logout, userToken } = useContext(AuthContext);
+  
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [favoriteStores, setFavoriteStores] = useState<FavoriteStore[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const isFocused = useIsFocused(); // Hook to know if the screen is active
 
-  useEffect(() => {
-    const fetchFavorites = async () => {
-        if (!userToken) return;
+  // useFocusEffect will re-fetch data every time this screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      if (!userToken) return;
+
+      const fetchData = async () => {
         setIsLoading(true);
         try {
-            const response = await apiClient.get('/favorites/stores', {
-                headers: { Authorization: `Bearer ${userToken}` }
-            });
-            setFavoriteStores(response.data);
+          // Fetch both profile and favorites in parallel
+          const [profileRes, favoritesRes] = await Promise.all([
+            apiClient.get('/users/me'),
+            apiClient.get('/favorites/stores')
+          ]);
+          setProfile(profileRes.data);
+          setFavoriteStores(favoritesRes.data);
         } catch (error) {
-            console.error("Failed to fetch favorites", error);
+          console.error("Failed to fetch data", error);
         } finally {
-            setIsLoading(false);
+          setIsLoading(false);
         }
-    };
-    
-    // Fetch favorites when the screen comes into focus
-    if (isFocused) {
-        fetchFavorites();
-    }
-  }, [userToken, isFocused]); // Re-fetch when token changes or screen is focused
+      };
+      
+      fetchData();
+    }, [userToken])
+  );
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.container}>
+      <ScrollView>
         <View style={styles.profileHeader}>
           <Image 
-            source={{ uri: 'https://i.pravatar.cc/150' }} // Placeholder image
+            source={{ uri: 'https://i.pravatar.cc/150' }} // Placeholder avatar
             style={styles.avatar} 
           />
-          <Text style={styles.profileName}>Arukwe</Text>
-          <Text style={styles.profileEmail}>arukwe@email.com</Text>
+          {/* Display the name and email from the fetched profile data */}
+          <Text style={styles.profileName}>{profile?.name || 'Loading...'}</Text>
+          <Text style={styles.profileEmail}>{profile?.email || ''}</Text>
         </View>
         
         <SectionHeader title="Favorites" />
         <View style={styles.section}>
           <SettingsItem label="Favorite Products" icon="heart-outline" onPress={() => {}} />
-          {isLoading ? <ActivityIndicator style={{margin: 10}}/> :
-            favoriteStores.map(store => (
-                <SettingsItem key={store.id} label={store.name} icon="storefront-outline" onPress={() => {}} />
-            ))
-          }
-           {favoriteStores.length === 0 && !isLoading && <SettingsItem label="No favorite stores yet" icon="storefront-outline" onPress={() => {}} />}
+          {isLoading ? <ActivityIndicator style={{margin: 10}}/> : (
+            favoriteStores.length > 0 ? (
+              favoriteStores.map(store => (
+                  <SettingsItem key={store.id} label={store.name} icon="storefront-outline" onPress={() => {}} />
+              ))
+            ) : (
+              <SettingsItem label="No favorite stores yet" icon="storefront-outline" onPress={() => {}} />
+            )
+          )}
         </View>
 
         <SectionHeader title="App" />
@@ -143,6 +152,7 @@ const styles = StyleSheet.create({
     marginTop: 30,
     marginHorizontal: 16,
     alignItems: 'center',
+    paddingBottom: 20
   },
   logoutButtonText: {
     color: '#FF3B30', // Standard iOS destructive red

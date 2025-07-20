@@ -39,28 +39,32 @@ export default function RegisterPage() {
 
     return (
         <div className="flex items-center justify-center min-h-screen bg-gray-50">
-            <div className="p-8 bg-white rounded-lg shadow-md w-full max-w-sm">
-                <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">Create Store Account</h2>
+            <div className="p-8 bg-white rounded-lg shadow-lg w-full max-w-md">
+                <h2 className="text-3xl font-bold text-center mb-1 text-gray-900">Create a Store Account</h2>
+                <p className="text-center text-gray-500 mb-8">Join the Neighbor network</p>
                 {error && <p className="text-red-500 text-center mb-4">{error}</p>}
-                {successMessage && <p className="text-green-500 text-center mb-4">{successMessage}</p>}
-                <form onSubmit={handleRegister} className="space-y-4">
-                    {/* --- ADD THIS NEW INPUT FIELD --- */}
+                <form onSubmit={handleRegister} className="space-y-6">
                     <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="name">Full Name</label>
-                        <input id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} required className="w-full p-2 border rounded shadow-sm" />
+                        <label className="block text-gray-700 font-semibold mb-2" htmlFor="name">Full Name</label>
+                        <input id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} required 
+                               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400" />
                     </div>
                     <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="email">Email</label>
-                        <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full p-2 border rounded shadow-sm" />
+                        <label className="block text-gray-700 font-semibold mb-2" htmlFor="email">Email</label>
+                        <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required 
+                               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400" />
                     </div>
                     <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="password">Password</label>
-                        <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full p-2 border rounded shadow-sm" />
+                        <label className="block text-gray-700 font-semibold mb-2" htmlFor="password">Password</label>
+                        <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required 
+                               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400" />
                     </div>
-                    <button type="submit" className="w-full bg-green-600 text-white p-2 rounded hover:bg-green-700 transition-colors font-bold">Register</button>
+                    <button type="submit" className="w-full bg-yellow-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-yellow-600 transition-colors">
+                        Register
+                    </button>
                 </form>
-                <p className="text-center text-sm text-gray-600 mt-4">
-                    Already have an account? <Link to="/login" className="text-blue-600 hover:underline">Login</Link>
+                <p className="text-center text-sm text-gray-600 mt-6">
+                    Already have an account? <Link to="/login" className="text-yellow-500 font-bold hover:underline">Login</Link>
                 </p>
             </div>
         </div>

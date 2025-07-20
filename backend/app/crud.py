@@ -12,6 +12,16 @@ from thefuzz import process
 from typing import Optional
 from sqlalchemy.dialects import postgresql 
 
+# A simple dictionary to store the approximate max internal radius for each state in KM
+STATE_MAX_RADII = {
+    "Rivers": 50,
+    "Lagos": 30,
+    "Imo": 40,
+    "Abuja (FCT)": 35,
+    # Add other states as needed for your demo
+}
+
+
 def get_user_by_email(db: Session, email: str):
     return db.query(models.User).filter(models.User.email == email).first()
 
@@ -90,6 +100,18 @@ def unified_search(
 ):
     """A single function to handle all product price searches with starts-with and contains search."""
     
+    # Move user_state to outer scope
+    user_state = None
+    
+    # Determine user_state if GPS coordinates are provided
+    if lat is not None and lon is not None:
+        user_point = sql_func.ST_SetSRID(sql_func.ST_MakePoint(lon, lat), 4326)
+        user_state_query = db.query(models.StateBoundary.state_name).filter(
+            sql_func.ST_Contains(models.StateBoundary.geom, user_point)
+        ).first()
+        if user_state_query:
+            user_state = user_state_query[0]
+    
     def build_base_query(search_pattern: str):
         """Build the base query with explicit joins and a given search pattern"""
         # Start by explicitly selecting from the Price table
@@ -114,6 +136,7 @@ def unified_search(
         # Add distance calculation if GPS coordinates are provided
         if lat is not None and lon is not None:
             user_point = sql_func.ST_SetSRID(sql_func.ST_MakePoint(lon, lat), 4326)
+            
             q = q.add_columns(
                 sql_func.ST_Distance(
                     models.MarketArea.location.cast(Geography),
@@ -162,6 +185,7 @@ def unified_search(
     formatted_results = []
     # Note: The query now returns a tuple of (Price, avg_rating, distance_meters)
     for price_obj, avg_rating, distance_meters in results:
+        market_state = price_obj.store.market_area.city.state.name
         location_shape = to_shape(price_obj.store.market_area.location) if price_obj.store.market_area.location else None
         res = {
             "product_id": price_obj.product.id,
@@ -175,7 +199,9 @@ def unified_search(
             "timestamp": price_obj.timestamp,
             "stock_level": price_obj.stock_level,
             "avg_rating": avg_rating,
+            "image_url": price_obj.product.image_url,  
             "distance_km": (distance_meters / 1000) if distance_meters is not None else None,
+            "is_out_of_state": user_state is not None and market_state != user_state,
             "lat": location_shape.y if location_shape else None, 
             "lon": location_shape.x if location_shape else None,
         }
@@ -248,6 +274,7 @@ def get_prices_for_product(
             "timestamp": price.timestamp,
             "lat": location_shape.y if location_shape else None,
             "lon": location_shape.x if location_shape else None,
+            "image_url": price.product.image_url,
             "stock_level": price.stock_level,
             "avg_rating": avg_rating,
             "distance_km": round(distance_meters / 1000, 2) if distance_meters is not None else None,
@@ -426,3 +453,19 @@ def get_view_counts_for_store(db: Session, store_id: int):
     
     # Format the results
     return [{"product_name": name, "view_count": count} for name, count in results]
+
+def get_state_info_for_location(db: Session, lat: float, lon: float):
+    user_point = func.ST_SetSRID(func.ST_MakePoint(lon, lat), 4326)
+    
+    # Query to find which state polygon contains the user's point
+    state_boundary = db.query(models.StateBoundary).filter(
+        func.ST_Contains(models.StateBoundary.geom, user_point)
+    ).first()
+
+    if not state_boundary:
+        return None
+
+    state_name = str(state_boundary.state_name)
+    max_radius = STATE_MAX_RADII.get(state_name, 100) # Default to 100km if not in our dict
+
+    return {"state_name": state_name, "max_safe_radius_km": max_radius}

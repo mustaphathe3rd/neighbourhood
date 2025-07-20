@@ -41,3 +41,10 @@ def read_cities_for_state(state_id: int, db: Session = Depends(get_db)):
 @router.get("/markets/{city_id}", response_model=List[schemas.MarketAreaSimple])
 def read_markets_for_city(city_id: int, db: Session = Depends(get_db)):
     return crud.get_markets_by_city(db=db, city_id=city_id)
+
+@router.get("/state-info")
+def get_state_info(lat: float, lon: float, db: Session = Depends(get_db)):
+    info = crud.get_state_info_for_location(db=db, lat=lat, lon=lon)
+    if not info:
+        raise HTTPException(status_code=404, detail="Could not determine state for the given coordinates.")
+    return info

@@ -1,27 +1,25 @@
-import React, { createContext, useState, ReactNode, useContext, useCallback, useEffect } from 'react';
+import React, { createContext, useState, ReactNode, useContext } from 'react';
 import apiClient from '../api/client';
 import { AuthContext } from './AuthContext';
-import { useFocusEffect } from 'expo-router';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-// The shape of a single item in our list
+// --- Types ---
 export type ListItem = {
-  id: number; // The unique ID of the list item itself
+  id: number;
   product_id: number;
   store_id: number;
   quantity: number;
   product_name: string;
+  store_name: string;
   price_at_addition: number;
   image_url?: string;
 };
 
-// The shape of the entire shopping list object from the API
 type ShoppingList = {
-    id: number;
     items: ListItem[];
     total_price: number;
 }
 
-// The data needed to add a new item
 type NewListItemData = {
   product_id: number;
   store_id: number;
@@ -30,84 +28,67 @@ type NewListItemData = {
 
 type ShoppingListContextType = {
   list: ShoppingList | null;
-  addItem: (item: NewListItemData) => Promise<void>;
-  updateItemQuantity: (itemId: number, newQuantity: number) => Promise<void>;
-  removeItem: (itemId: number) => Promise<void>;
+  addItem: (item: NewListItemData) => void;
+  updateItemQuantity: (vars: {itemId: number, newQuantity: number}) => void;
+  isUpdating: boolean; // To know if a mutation is in progress
   isLoading: boolean;
-  refreshList: () => void;
 };
 
 export const ShoppingListContext = createContext<ShoppingListContextType>({} as ShoppingListContextType);
 
+// --- API Functions ---
+const fetchShoppingList = async () => {
+    const { data } = await apiClient.get('/list/');
+    console.log('Shopping list API response:', JSON.stringify(data, null, 2));
+    return data;
+};
+
+const addListItem = (item: NewListItemData) => apiClient.post('/list/items', item);
+const updateListItem = ({ itemId, newQuantity }: { itemId: number, newQuantity: number }) => {
+    if (newQuantity <= 0) {
+        return apiClient.delete(`/list/items/${itemId}`);
+    }
+    return apiClient.put(`/list/items/${itemId}`, { quantity: newQuantity });
+};
+
+
 export const ShoppingListProvider = ({ children }: { children: ReactNode }) => {
-  const [list, setList] = useState<ShoppingList | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
   const { userToken } = useContext(AuthContext);
 
-  const refreshList = async () => {
-    if (!userToken) return; // Don't fetch if not logged in
-    setIsLoading(true);
-    try {
-      const response = await apiClient.get('/list/');
-      setList(response.data);
-    } catch (error) {
-      console.error("Failed to fetch shopping list", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // useQuery to fetch and cache the shopping list
+  const { data: list, isLoading } = useQuery<ShoppingList>({
+    queryKey: ['shoppingList'],
+    queryFn: fetchShoppingList,
+    enabled: !!userToken, // Only fetch if the user is logged in
+  });
 
-  // useFocusEffect from expo-router is a great way to re-fetch data
-  // every time the user navigates to a screen that uses this context.
-  // We'll use this in the shopping-list.tsx screen itself.
-  // For now, let's fetch once on login.
-  useEffect(() => {
-    if (userToken) {
-        refreshList();
-    }
-  }, [userToken]);
+  // useMutation for adding and updating items
+  const { mutate: updateItem, isPending: isUpdating } = useMutation({
+      mutationFn: updateListItem,
+      onSuccess: () => {
+          // THIS IS THE KEY: After a successful mutation, invalidate the cache.
+          queryClient.invalidateQueries({ queryKey: ['shoppingList'] });
+      }
+  });
 
+  const { mutate: addItemMutation } = useMutation({
+      mutationFn: addListItem,
+      onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ['shoppingList'] });
+      }
+  });
 
-  const addItem = async (itemToAdd: NewListItemData) => {
-    try {
-      // The API now handles the logic of checking for existing items and updating quantity.
-      // This makes the frontend simpler and more reliable.
-      await apiClient.post('/list/items', itemToAdd);
-      // After adding, refresh the whole list to get the latest state from the server.
-      await refreshList();
-    } catch (error) {
-      console.error("Failed to add item", error);
-    }
-  };
-
-  const removeItem = async (itemId: number) => {
-    try {
-      await apiClient.delete(`/list/items/${itemId}`);
-      await refreshList();
-    } catch (error) {
-      console.error("Failed to remove item", error);
-    }
-  };
-  
-
-  const updateItemQuantity = async (itemId: number, newQuantity: number) => {
-    // BUG FIX: Your previous code would remove the item locally but might fail
-    // on the API, causing an inconsistent state. It's better to delegate this logic.
-    if (newQuantity <= 0) {
-        await removeItem(itemId);
-    } else {
-        try {
-            await apiClient.put(`/list/items/${itemId}`, { quantity: newQuantity });
-            await refreshList();
-        } catch (error) {
-            console.error("Failed to update quantity", error);
-        }
-    }
-  };
-
-  
   return (
-    <ShoppingListContext.Provider value={{ list, addItem, updateItemQuantity, removeItem, isLoading, refreshList }}>
+    <ShoppingListContext.Provider 
+        value={{ 
+            list: list ?? null, 
+            addItem: addItemMutation, 
+            updateItemQuantity: updateItem, 
+            isLoading,
+            isUpdating 
+        }}
+    >
       {children}
     </ShoppingListContext.Provider>
   );

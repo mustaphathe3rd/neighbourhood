@@ -71,6 +71,7 @@ class Product(BaseModel):
     name: str
     category: Optional[str] = None
     barcode: Optional[str] = None
+    image_url: Optional[str] = None
     class Config: from_attributes = True
     
 class PriceBase(BaseModel):
@@ -100,6 +101,8 @@ class PriceSearchResult(BaseModel):
     distance_km: Optional[float] = None
     lat: Optional[float] = None
     lon: Optional[float] = None
+    image_url: Optional[str] = None
+    is_out_of_state: Optional[bool] = None
     
     class Config:
         from_attributes = True
@@ -129,6 +132,7 @@ class ListItemCreate(BaseModel):
     product_id: int
     store_id: int
     price: float
+    
 
 class ListItem(BaseModel):
     id: int
@@ -137,6 +141,7 @@ class ListItem(BaseModel):
     product_name: str
     store_name: str
     price_at_addition: float
+    image_url: Optional[str] = None
 
     class Config:
         from_attributes = True

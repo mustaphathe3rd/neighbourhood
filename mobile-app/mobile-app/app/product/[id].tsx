@@ -24,6 +24,7 @@ type PriceResult = {
   city: string;
   lat?: number;
   lon?: number;
+  image_url?: string;
 };
 
 type Review = {
@@ -167,7 +168,7 @@ export default function ProductDetailScreen() {
         {/* The screen title now comes directly from the passed data */}
         <Stack.Screen options={{ title: listing.product_name }} />
         
-        <Image source={{ uri: `https://picsum.photos/seed/${listing.product_id}/400/300` }} style={styles.productImage} />
+        <Image source={{ uri: listing.image_url}} style={styles.productImage} />
         
         <View style={styles.contentContainer}>
             <Text style={styles.productName}>{listing.product_name}</Text>

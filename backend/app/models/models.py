@@ -71,6 +71,7 @@ class Product(Base):
     name = Column(String, index=True)
     barcode = Column(String, unique=True, index=True, nullable=True)
     category = Column(String, index=True)
+    image_url = Column(String, nullable=True)
     
     shopping_list_items = relationship("ShoppingListItem", back_populates="product")
     prices = relationship("Price", back_populates="product")
@@ -127,3 +128,9 @@ class ProductView(Base):
     product_id = Column(Integer, ForeignKey("products.id"))
     store_id = Column(Integer, ForeignKey("stores.id"))
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    
+class StateBoundary(Base):
+    __tablename__ = "state_boundaries"
+    id = Column(Integer, primary_key=True, index=True)
+    state_name = Column(String, unique=True, index=True)
+    geom = Column(Geometry(geometry_type='GEOMETRY', srid=4326), index=True)

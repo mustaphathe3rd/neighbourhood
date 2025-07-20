@@ -17,16 +17,20 @@ class ListItemUpdate(BaseModel):
 def get_user_shopping_list(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     shopping_list = crud.get_or_create_shopping_list(db, user_id=current_user.id)
 
+    for item in shopping_list.items:
+        print(f"Product {item.product.name} image_url: {item.product.image_url}")
+        
     total_price = sum(item.price_at_addition * item.quantity for item in shopping_list.items)
 
     formatted_items = [
         {
             "id": item.id, "product_id": item.product.id, "quantity": item.quantity,
             "product_name": item.product.name, "store_id": item.store.id,
-            "store_name": item.store.name, "price_at_addition": item.price_at_addition
+            "store_name": item.store.name, "price_at_addition": item.price_at_addition,
+            "image_url": item.product.image_url
         } for item in shopping_list.items
     ]
-    return {"id": shopping_list.id, "items": formatted_items, "total_price": total_price}
+    return {"id": shopping_list.id,"items": formatted_items, "total_price": total_price}
 
 @router.post("/items", response_model=schemas.ListItem)
 def add_product_to_list(
