@@ -1,6 +1,6 @@
 # backend/app/crud.py
 from sqlalchemy.orm import Session
-from sqlalchemy import func as sql_func, desc, text
+from sqlalchemy import func as sql_func, desc, text, and_
 from sqlalchemy import or_, func
 from .utils import auth
 from . import schemas
@@ -90,106 +90,104 @@ def get_product_by_barcode(db: Session, barcode: str):
     return db.query(models.Product).filter(models.Product.barcode == barcode).first()
 
 def unified_search(
-    db: Session, 
-    query: str, 
+    db: Session,
+    query: str,
     sort_by: str,
-    lat: Optional[float] = None, 
-    lon: Optional[float] = None, 
-    radius_km: Optional[int] = None,
-    city_id: Optional[int] = None
+    lat: Optional[float],
+    lon: Optional[float],
+    radius_km: Optional[int],
+    city_id: Optional[int]
 ):
-    """A single function to handle all product price searches with starts-with and contains search."""
+    """
+    The definitive, unified search function.
+    Correctly calculates per-product, per-store ratings and distance.
+    """
     
-    # Move user_state to outer scope
+    # Determine user's state if GPS coordinates are provided
     user_state = None
-    
-    # Determine user_state if GPS coordinates are provided
     if lat is not None and lon is not None:
         user_point = sql_func.ST_SetSRID(sql_func.ST_MakePoint(lon, lat), 4326)
-        user_state_query = db.query(models.StateBoundary.state_name).filter(
+        state_boundary_query = db.query(models.StateBoundary.state_name).filter(
             sql_func.ST_Contains(models.StateBoundary.geom, user_point)
         ).first()
-        if user_state_query:
-            user_state = user_state_query[0]
+        if state_boundary_query:
+            user_state = state_boundary_query[0]
+
+    # Step 1: Create a subquery to calculate avg_rating PER STORE for each product
+    # This provides more granular ratings than just per-product averages
+    review_subquery = db.query(
+        models.Review.product_id,
+        models.Review.store_id,
+        sql_func.avg(models.Review.rating).label("avg_rating")
+    ).group_by(models.Review.product_id, models.Review.store_id).subquery()
     
-    def build_base_query(search_pattern: str):
-        """Build the base query with explicit joins and a given search pattern"""
-        # Start by explicitly selecting from the Price table
-        q = db.query(
-            models.Price,
-            sql_func.avg(models.Review.rating).label("avg_rating")
-        ).select_from(models.Price)
-        
-        # Now, explicitly join each table based on the relationships
-        q = q.join(models.Product)
-        q = q.join(models.Store)
-        q = q.join(models.MarketArea)
-        # Use an outerjoin for reviews, as not all products may have reviews
-        q = q.outerjoin(models.Review, models.Price.product_id == models.Review.product_id)
-        
-        # Filter by the product name with the given search pattern
-        q = q.filter(models.Product.name.ilike(search_pattern))
-        
-        # Group by all necessary columns to allow for AVG() and COUNT()
-        q = q.group_by(models.Price.id, models.Product.id, models.Store.id, models.MarketArea.id)
-        
-        # Add distance calculation if GPS coordinates are provided
-        if lat is not None and lon is not None:
-            user_point = sql_func.ST_SetSRID(sql_func.ST_MakePoint(lon, lat), 4326)
-            
-            q = q.add_columns(
-                sql_func.ST_Distance(
-                    models.MarketArea.location.cast(Geography),
-                    user_point.cast(Geography)
-                ).label("distance_meters")
-            )
-            if radius_km:
-                q = q.filter(sql_func.ST_DWithin(
-                    models.MarketArea.location.cast(Geography),
-                    user_point.cast(Geography),
-                    radius_km * 1000
-                ))
-        else:
-            # Add a null distance column if no GPS for consistent result shape
-            q = q.add_columns(text("NULL AS distance_meters"))
-        
-        # Add city filter if provided
-        if city_id:
-            q = q.filter(models.MarketArea.city_id == city_id)
-        
-        return q
+    # Step 2: Build the main query, starting explicitly from the Price table
+    q = db.query(
+        models.Price,
+        review_subquery.c.avg_rating
+    ).select_from(models.Price)
     
-    def apply_sorting(q, sort_by):
-        """Apply sorting logic to the query"""
-        if sort_by == "price_desc":
-            return q.order_by(desc(models.Price.price))
-        elif sort_by == "rating_desc":
-            return q.order_by(desc("avg_rating").nullslast())
-        elif sort_by == "distance_asc" and lat is not None:
-            return q.order_by("distance_meters")
-        else:
-            return q.order_by(models.Price.price.asc())
+    # Step 3: Join all the necessary tables
+    q = q.join(models.Product)
+    q = q.join(models.Store)
+    q = q.join(models.MarketArea)
     
-    # First try "starts with" search
-    q = build_base_query(f"{query}%")
-    q = apply_sorting(q, sort_by)
+    # Step 4: Use an outerjoin to the subquery on BOTH product_id and store_id
+    # This ensures we get store-specific ratings while still including products with no reviews
+    q = q.outerjoin(
+        review_subquery, 
+        and_(
+            models.Price.product_id == review_subquery.c.product_id,
+            models.Price.store_id == review_subquery.c.store_id
+        )
+    )
+    
+    # Step 5: Add filters for product name and location
+    q = q.filter(models.Product.name.ilike(f"%{query}%"))
+    
+    if city_id:
+        q = q.filter(models.MarketArea.city_id == city_id)
+    
+    # Step 6: Add distance calculation and filtering if GPS is used
+    if lat is not None and lon is not None:
+        user_point = sql_func.ST_SetSRID(sql_func.ST_MakePoint(lon, lat), 4326)
+        q = q.add_columns(
+            sql_func.ST_Distance(
+                models.MarketArea.location.cast(Geography),
+                user_point.cast(Geography)
+            ).label("distance_meters")
+        )
+        if radius_km:
+            q = q.filter(sql_func.ST_DWithin(
+                models.MarketArea.location.cast(Geography),
+                user_point.cast(Geography),
+                radius_km * 1000
+            ))
+    else:
+        # Add a null distance column if no GPS for consistent result shape
+        q = q.add_columns(text("NULL AS distance_meters"))
+    
+    # Step 7: Apply sorting
+    if sort_by == "price_desc":
+        q = q.order_by(desc(models.Price.price))
+    elif sort_by == "rating_desc":
+        q = q.order_by(desc("avg_rating").nullslast())
+    elif sort_by == "distance_asc" and lat is not None:
+        q = q.order_by("distance_meters")
+    else:
+        q = q.order_by(models.Price.price.asc())
+    
+    # Step 8: Execute the query and format the results
     results = q.all()
     
-    # If no "starts with" match, try a broader "contains" search
-    if not results:
-        q = build_base_query(f"%{query}%")
-        q = apply_sorting(q, sort_by)
-        results = q.all()
-    
-    # Format results
     formatted_results = []
-    # Note: The query now returns a tuple of (Price, avg_rating, distance_meters)
     for price_obj, avg_rating, distance_meters in results:
         market_state = price_obj.store.market_area.city.state.name
-        location_shape = to_shape(price_obj.store.market_area.location) if price_obj.store.market_area.location else None
+        location_shape = to_shape(price_obj.store.market_area.location)
         res = {
             "product_id": price_obj.product.id,
             "product_name": price_obj.product.name,
+            "image_url": price_obj.product.image_url,
             "price": price_obj.price,
             "store_id": price_obj.store.id,
             "store_name": price_obj.store.name,
@@ -199,14 +197,13 @@ def unified_search(
             "timestamp": price_obj.timestamp,
             "stock_level": price_obj.stock_level,
             "avg_rating": avg_rating,
-            "image_url": price_obj.product.image_url,  
-            "distance_km": (distance_meters / 1000) if distance_meters is not None else None,
+            "distance_km": round(distance_meters / 1000, 2) if distance_meters is not None else None,
             "is_out_of_state": user_state is not None and market_state != user_state,
-            "lat": location_shape.y if location_shape else None, 
-            "lon": location_shape.x if location_shape else None,
+            "lat": location_shape.y,
+            "lon": location_shape.x,
         }
         formatted_results.append(res)
-        
+    
     return formatted_results
 
 def get_prices_for_product(
@@ -314,6 +311,7 @@ def create_review(db: Session, review:schemas.ReviewCreate, user_id: int):
         rating=review.rating,
         comment=review.comment,
         product_id=review.product_id,
+        store_id=review.store_id,
         user_id=user_id,
     )
     db.add(db_review)
@@ -321,8 +319,11 @@ def create_review(db: Session, review:schemas.ReviewCreate, user_id: int):
     db.refresh(db_review)
     return db_review
 
-def get_reviews_for_product(db: Session, product_id: int):
-    return db.query(models.Review).filter(models.Review.product_id == product_id).order_by(desc(models.Review.timestamp)).all()
+def get_reviews_for_product(db: Session, product_id: int, store_id: int):
+    return db.query(models.Review).filter(
+        models.Review.product_id == product_id,
+        models.Review.store_id == store_id # <-- Add the store filter
+    ).order_by(desc(models.Review.timestamp)).all()
 
 def get_or_create_shopping_list(db: Session, user_id: int):
     """

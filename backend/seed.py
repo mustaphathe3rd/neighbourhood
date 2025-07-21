@@ -165,16 +165,29 @@ try:
                 db.add(models.Price(product_id=product.id, store_id=store.id, price=final_price, stock_level=stock, timestamp=datetime.utcnow()))
     db.commit()
     
-    # Seed Reviews
     print("Seeding reviews...")
     consumer_user = db.query(models.User).filter(models.User.email == "consumer@test.com").first()
     rice_product = db.query(models.Product).filter(models.Product.name == "Bag of Rice (50kg)").first()
-    
-    if consumer_user and rice_product:
-        if not db.query(models.Review).filter(models.Review.user_id == consumer_user.id, models.Review.product_id == rice_product.id).first():
-            db.add(models.Review(rating=4, comment="Good quality rice, cooks well.", user_id=consumer_user.id, product_id=rice_product.id))
+    # Find a specific store to review the product at
+    owerri_store = db.query(models.Store).filter(models.Store.name == "Eke Ukwu Owerri Main Store").first()
+
+    if consumer_user and rice_product and owerri_store:
+        # Check if this specific review already exists
+        if not db.query(models.Review).filter(
+            models.Review.user_id == consumer_user.id, 
+            models.Review.product_id == rice_product.id,
+            models.Review.store_id == owerri_store.id
+        ).first():
+            db.add(models.Review(
+                rating=4, 
+                comment="Good quality rice from this store, cooks well.", 
+                user_id=consumer_user.id, 
+                product_id=rice_product.id,
+                store_id=owerri_store.id # <-- The crucial addition
+            ))
             db.commit()
-    
+
+    print("Review seeding complete! ⭐")
     print("\n✅ Seeding complete!")
 
 finally:

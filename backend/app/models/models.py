@@ -97,9 +97,11 @@ class Review(Base):
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     user_id = Column(Integer, ForeignKey("users.id"))
     product_id = Column(Integer, ForeignKey("products.id"))
+    store_id = Column(Integer, ForeignKey("stores.id"), nullable=True) 
     
     user = relationship("User", back_populates="reviews")
     product = relationship("Product", back_populates="reviews")
+    store = relationship("Store")
     
 class ShoppingList(Base):
     __tablename__ = "shopping_lists"

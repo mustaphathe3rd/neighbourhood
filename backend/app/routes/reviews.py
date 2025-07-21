@@ -24,5 +24,5 @@ def submit_review(
     
 
 @router.get("/product/{product_id}", response_model=List[schemas.Review])
-def read_reviews(product_id: int, db:Session = Depends(get_db)):
-    return crud.get_reviews_for_product(db=db, product_id=product_id)
+def read_reviews(product_id: int,store_id:int, db:Session = Depends(get_db)):
+    return crud.get_reviews_for_product(db=db, product_id=product_id, store_id=store_id)

@@ -3,7 +3,7 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
-const API_BASE_URL = 'https://99d1be493ddf.ngrok-free.app'; // Paste your active ngrok URL here
+const API_BASE_URL = 'https://f69daec04d69.ngrok-free.app'; // Paste your active ngrok URL here
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,

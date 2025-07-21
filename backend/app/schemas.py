@@ -119,6 +119,7 @@ class ReviewBase(BaseModel):
     
 class ReviewCreate(ReviewBase):
     product_id: int
+    store_id: int
     
 class Review(ReviewBase):
     id: int

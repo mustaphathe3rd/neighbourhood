@@ -60,7 +60,9 @@ export default function ProductDetailScreen() {
       if (!id) return;
       setIsLoading(true);
       try {
-          const response = await apiClient.get(`/reviews/product/${id}`);
+          const response = await apiClient.get(`/reviews/product/${id}`, {
+            params: { store_id: listing.store_id }
+          });
           setReviews(response.data);
       } catch (error) { 
           console.error("Failed to fetch reviews", error);
@@ -111,6 +113,7 @@ export default function ProductDetailScreen() {
 
     const payload = {
         product_id: parseInt(id, 10),
+        store_id: listing.store_id,
         rating: myRating,
         comment: myComment.trim()
     };
