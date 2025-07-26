@@ -120,7 +120,7 @@ cd mobile-app
 npm install
 
 # 3. Start the Expo development server
-npx expo start
+npx expo start --tunnel
 
 ```
 
@@ -133,7 +133,7 @@ Scan the QR code with the Expo Go app on your iOS or Android device to run the a
 Alternatively and preferably use a ngrok server (to ensure seamless connection with the mobile device) to host the backend server that is running on port 8000 by running the command:
 
  ``` bash
- ngrok http 800
+ ngrok http 8000
  ```
  then attach the url in this format to the API_BASE_URL constant in **neighbourhood/mobile-app/mobile-app/src/api/client.ts**
  ```bash
